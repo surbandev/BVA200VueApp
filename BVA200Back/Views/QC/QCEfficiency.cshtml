@@ -1,0 +1,818 @@
+@using Newtonsoft.Json
+<link rel="stylesheet"
+      href="~/css/rapid-single-page.css" />
+<link rel="stylesheet"
+      href="~/css/slick-custom.css" />
+<link rel="stylesheet"
+      href="~/css/body-map.css" />
+
+<div id="app">
+  <div class="d-flex flex-column justify-content-end h-100">
+    <div class="rounded-card standard-wrap bg-white">
+      <!-- SLICK SLIDER  -->
+      <div class="single-wrap">
+        <!-- STEP 1 COUNT BACKGROUND  -->
+        <div id="baselineDrawnDiv"
+             class="statSingleStep active">
+          <div v-if="!backgroundCounted">
+            <h2 class="first-p mb-5 text-center"
+              id="baselineDrawnText">
+              Reading the background... &nbsp;&nbsp;&nbsp;
+            </h2>
+            <div>
+              <p class="notification my-5"
+                style="text-align: center">
+                We do this to ensure you are in a good location and the well is empty in order to provide you with the most accurate results.
+              </p>
+            </div>
+          </div>
+          <div v-else>
+            <h2 class="first-p mb-5"
+                id="baselineDrawnText">
+                Lets Check the Efficiency! &nbsp;&nbsp;&nbsp;
+            </h2>
+            <div>
+              <p class="notification my-5"
+                 style="text-align: center">
+                 Place the high strength sample of Ba-133 into the well and click "Read" below when you are ready to proceed.
+              </p>
+            </div>
+            <div class="scanTracerDoseStatLine center-btn">
+              <input id="countQCButton"
+                     type="button"
+                     class="btn btn-lg blueButton homeScreenButtonSixInchRight"
+                     value="Read"
+                     v-on:click="countQC" />
+            </div>
+          </div>
+          <div v-if="backgroundCounting"
+               id="progressBarBackgroundWrap"
+               class="progress">
+            <div id="progressBarBackground"
+                 class=" progress-bar progress-bar-striped bg-success progress-bar-animated">
+            </div>
+          </div>
+        </div>
+        <!-- STEP 2 COUNT 10K SAMPLE -->
+        <div id="countQCSampleDiv"
+             class="statSingleStep active">
+          <h2 v-if="qcCounting && backgroundCounted"
+              class="first-p mb-5"
+              id="qcCountingText">
+            Reading Ba-133 for Efficiency... &nbsp;&nbsp;&nbsp;
+          </h2>
+          <h2 v-else
+              class="first-p mb-5">
+            Complete
+          </h2>
+          <div v-if="roiCounts > 0"
+               style="text-align: center;">
+            {{ roiCounts }} of 10k counts needed.
+            <h4 style="font-size: small;"
+                v-if="qcCounted">Stored QC Efficiency Date: {{ storedQCTimestamp }}, CPM: {{
+              storedCPM }}</h4>
+            <h4 style="font-size: small;"
+                v-if="qcCounted">Todays QC Efficiency Date: {{ timestampConverted }}, CPM: {{
+              roiCPM.cpm }}</h4>
+            <br>
+            <h4 style="font-size: medium;"
+                v-if="qcCounted"> {{ calculatedPercentage }}</h4>
+          </div>
+        </div>
+        <!-- When 10 counts have been completed we need to take todays date and match it with CPM on the 10K
+    counts. Then we need to look at the original source and get its CPM as well as the date it was taken.
+    Lastly we need to calculate the decay over time between the two sample dates and factor that into
+    the 5% alloted change between CPM on the samples. -->
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- Vue logic lives here -->
+
+<script>
+  CreateTestParametersStepDrivenVue(@Html.Raw(JsonConvert.SerializeObject(Model)));
+  function CreateTestParametersStepDrivenVue(model) {
+    new Vue({
+      el: '#app',
+      data: {
+        activeColor: "grey",
+        backgroundCounted: false,
+        backgroundCounting: true,
+        backgroundSpectrum: [],
+        count: 0,
+        centroid: 0,
+        detectorOpen: false,
+        detectorState: "",
+        detectorStarted: false,
+        highChannel: model.HighChannel,
+        lowChannel: model.LowChannel,
+        minutesToCountBackground: 1,
+        peaks: [],
+        qcCounting: false,
+        qcCounted: false,
+        qcSpectrum: [],
+        realTime: 0,
+        result: 1,
+        roiCounts: 0,
+        roiCPM: {},
+        storedCPM: model.CPM,
+        storedQCTimestamp: model.Timestamp,
+        updateInterval: 500
+      },
+      async mounted() {
+        const context = this;
+        try {
+          await context.openReader();
+          context.countBackground();
+        } catch (err) {
+          onFail(err);
+        }
+      },
+      async beforeUnmount() {
+        await closeReader();
+      },
+      computed: {
+        timestampConverted() {
+          let time = this.roiCPM.timestamp;
+          let timeTwo = this.roiCPM;
+          return this.roiCPM.timestamp.toLocaleString();
+        },
+        calculatedPercentage() {
+          let currentCPM = Math.round(this.roiCPM.cpm);
+          let storedCPM = Math.round(this.storedCPM);
+          let difference_In_Time = new Date(this.storedQCTimestamp).getTime() - new Date(this.roiCPM.timestamp).getTime();
+          let difference_In_Days = difference_In_Time / (1000 * 3600 * 24);
+
+          // t needs to equal how many days occured between original vs now.
+          let a0 = storedCPM * 2 ^ (difference_In_Days / 11018);
+          let result = Math.round((a0 / 100) * 5);
+
+          let low = currentCPM - result;
+          let high = currentCPM + result;
+
+          if (storedCPM <= high && storedCPM >= low) {
+            this.result = true;
+            return 'Passed!';
+          } else {
+            this.result = false;
+            return "Fail";
+          }
+        }
+      },
+      methods: {
+        // COUNT BACKGROUND METHOD -------------------------------------------------------------------------------------------------------------------------
+        async countBackground() {
+          this.countSample("backgroundSpectrum");
+          this.startTimer(this.minutesToCountBackground, "progressBarBackground", "until background count is complete", "Background count complete", "background");
+          this.queProgressBar("progressBarBackground", this.minutesToCountBackground);
+        },
+        // 1. COUNT STANDARD METHOD ------------------------------------------------------------------------------------------------------------------------
+        async countQC() {
+          this.countSample("qcSpectrum");
+          this.qcCounting = true;
+          document.getElementById('slick-slide-control01').style.backgroundColor = "#28a745";
+          if (this.count <= 1) {
+            document.querySelector('.slick-next').click();
+          }
+        },
+        async countSample(sampleName) {
+          const context = this;
+          await context.startDataAquisition(sampleName);
+        },
+        async saveQCEfficiency(type) {
+          const context = this;
+          let url = type === "log" ? "QC/SaveQCLog" : "QC/SaveQC";
+          let one = this.result;
+          let result = this.result == 1 ? true : false;
+          const payload = {
+            TestType: 'Efficiency',
+            Timestamp: this.roiCPM.timestamp,
+            Counts: this.roiCounts,
+            CPM: parseInt(this.roiCPM.cpm),
+            Result: result
+          }
+          try {
+            axios.post(url, payload).then(function (response) {
+              onSuccess("QC Efficiency Saved successfully", "Saved");
+              console.log(response.data);
+            });
+          } catch (err) {
+            onFail("Failed To Save", "Failed");
+          }
+        },
+
+        // UTILITY METHODS ------------------------------------------------------------------------------------------------------------------------------------------------
+        queProgressBar: function (progressBarName, minutes) {
+          const context = this;
+          const progressBar = document.getElementById(progressBarName);
+          if (!progressBar) {
+            context.timeoutTimer = setTimeout(() => {
+              context.queProgressBar(progressBarName, minutes);
+            }, 1000);
+            return;
+          }
+          if (progressBar) {
+            progressBar.animate([
+              // keyframes
+              { width: '0' },
+              { width: '100%' }
+            ], {
+              // timing options
+              duration: minutes * 60 * 1000,
+              iterations: 1
+            });
+          }
+        },
+        startTimer: function (countForTime, textFieldID, messageWhileCounting, messageWhenComplete, step) {
+          const context = this;
+          var now = new Date();
+          var countDownDate = moment(now).add(countForTime, 'm').toDate();
+
+          context.intervalTimer = setInterval(function () {
+            var now = new Date().getTime();
+
+            // Find the distance between now and the count down date
+            var distance = countDownDate - now;
+
+            var minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+            var seconds = Math.floor((distance % (1000 * 60)) / 1000);
+            var string = '<span class="progress-inner">' + minutes + 'm ' + seconds + 's ' + messageWhileCounting + '</span>';
+            var textField = document.getElementById(textFieldID);
+            if (textField) {
+              textField.innerHTML = string;
+            }
+            // If the count down is finished, write some text
+            if (distance <= 0) {
+              clearInterval(context.intervalTimer);
+              switch (step) {
+                case "background":
+                  context.backgroundCounted = true;
+                  context.backgroundCounting = false;
+                  document.getElementById("progressBarBackgroundWrap").style.display = "none";
+                  break;
+                case "qc":
+                  context.count++;
+                  break;
+                default:
+                  break;
+              }
+            }
+          }, 1000);
+        },
+
+        run(sampleName) {
+          const context = this;
+          if (this.backgroundCounting) {
+            setTimeout(() => {
+              context.updateSpectrum(sampleName);
+              context.backgroundCounting = false;
+              context.stopDataAquisition();
+            }, context.minutesToCountBackground * 60 * 1000);
+          } else {
+            const context = this;
+            this.counting = setInterval(() => this.updateSpectrum(sampleName), context.updateInterval)
+          }
+        },
+        stop() {
+          clearInterval(this.counting);
+        },
+        async openReader() {
+          const context = this;
+          try {
+            await openTopazReader();
+            context.detectorOpen = true;
+          } catch (err) {
+            onFail(err, 'Failed to open Topaz Reader');
+          }
+        },
+        async closeReader() {
+          const context = this;
+          try {
+            await closeTopazReader();
+            context.detectorOpen = false;
+          } catch (err) {
+            onFail(err, 'Failed to close Topaz Reader');
+          }
+        },
+        async clearReader() {
+          const context = this;
+          try {
+            await clearMemory();
+            context.detectorStarted = false;
+            context.updateSpectrum();
+          } catch (err) {
+            onFail(err, 'Failed to clear Topaz memory');
+          }
+        },
+        async startDataAquisition(sampleName) {
+          const context = this;
+          try {
+            await clearMemory();
+            await startRead();
+            context.detectorState = "Counting ";
+            context.activeColor = "green";
+            context.detectorStarted = true;
+            context.run(sampleName);
+          } catch (err) {
+            console.error(err);
+          }
+        },
+        async stopDataAquisition() {
+          const context = this;
+          try {
+            context.stop();
+            await stopRead();
+            context.detectorState = "Idle";
+            context.activeColor = "grey";
+            context.detectorStarted = false;
+            return;
+          } catch (err) {
+            onFail(err, 'Failed to stop data aquisition');
+            console.error(err);
+          }
+        },
+        async updateSpectrum(sampleName) {
+          const context = this;
+          try {
+            const response = await readSpectrum();
+            context.acqMode = response.acqMode;
+            context.currentCounts = response.currentCounts;
+            context.digitalGain = response.digitalGain;
+            context.fineGain = response.fineGain;
+            context.highVoltageStatus = response.highVoltageStatus;
+            context.lld = response.lld;
+            context.liveTime = response.liveTime.toFixed(2);
+            context.peaks = response.peaks;
+            context.realTime = response.realTime.toFixed(2);
+            context.spectrum = response.detectorSpectrum;
+            if (context.liveTime >= 0 && context.realTime >= 0) {
+              d = context.realTime - context.liveTime;
+              context.deadTime = d.toFixed(2);
+            }
+            if (sampleName == "qcSpectrum" && context.peaks[1]) { //two peaks typically
+              let cent = context.peaks[1].centroid;
+              let length = context.peaks.length;
+              let location = 1;
+              if (cent <= 300 && context.peaks.length >= 3) {
+                location = 2;
+              }
+              context.qcPeaks = context.peaks;
+              context.highChannel = context.peaks[location].end;
+              context.lowChannel = context.peaks[location].start;
+              context.reportInterval();
+            }
+            context.reportSpectrum(sampleName);
+          } catch (err) {
+            console.log(err);
+          }
+        },
+        reportInterval() {
+          const countTime = this.realTime;
+          const background = this.backgroundSpectrum.slice(this.lowChannel, this.highChannel).reduce((acc, cur) => acc += cur, 0);
+          let roiCounts = this.qcSpectrum.slice(this.lowChannel, this.highChannel).reduce((acc, cur) => acc += cur, 0);
+          let roiCPM = this.qcSpectrum.slice(this.lowChannel, this.highChannel).reduce((acc, cur) => acc += cur, 0) / countTime;
+          this.roiCounts = roiCounts - background;
+          this.roiCPM = { timestamp: isoUTCNow(), cpm: roiCPM.toFixed(1) };
+          if (roiCounts >= 10000) {
+            this.stopDataAquisition();
+            this.qcCounting = false;
+            this.qcCounted = true;
+            this.saveQCEfficiency("log");
+          }
+        },
+        reportSpectrum: function (sampleName) {
+          const context = this;
+          switch (sampleName) {
+            case "backgroundSpectrum":
+              context.backgroundSpectrum = context.spectrum;
+              break;
+            case "qcSpectrum":
+              context.qcSpectrum = context.spectrum;
+              break;
+            default:
+              break;
+          }
+        },
+        ...vueMethods
+      }
+    })
+  }
+  feather.replace();
+  // SLICK SLIDER
+  $(document).ready(function () {
+    $('.single-wrap').slick({
+      infinite: true,
+      arrows: true,
+      dots: true
+    });
+  });
+</script>
+<style scoped>
+  :root {
+    font-size: 1.5rem;
+  }
+
+  #app {
+    height: 100%;
+  }
+
+  .status-indicator {
+    margin-bottom: 0;
+  }
+
+  .single-wrap {
+    display: none;
+  }
+
+  .progress.opaque {
+    opacity: 1;
+  }
+
+  #progressBarStandard,
+  #progressBarBaseLine,
+  #progressBarPostInjection {
+    width: 0;
+    transition: width 300s;
+    transition-timing-function: linear;
+  }
+
+  #progressBarDoseInjection {
+    width: 0;
+    transition: width 600s;
+    transition-timing-function: linear;
+  }
+
+  #progressBarStandard.loaded,
+  #progressBarBaseLine.loaded,
+  #progressBarPostInjection.loaded {
+    width: 100%;
+  }
+
+  #progressBarDoseInjection.loaded {
+    width: 100%;
+  }
+
+  .progress-inner {
+    padding: 0 1em;
+  }
+
+  input[type="number"] {
+    padding: .5em 1em;
+    text-align: center;
+    border: none;
+  }
+
+  input[type=number]::-webkit-inner-spin-button,
+  input[type=number]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    margin: 0;
+  }
+
+  div#progressBarBaseLineWrap {
+    margin-bottom: 2em;
+  }
+
+  ul.progress-icons {
+    padding: 0;
+    width: 100%;
+  }
+
+  ul.progress-icons li {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    color: #fff;
+    background-color: green;
+  }
+
+  .modal-copy {
+    font-size: 16px;
+  }
+
+  /* .input-splitinput {
+    margin-right: 8px;
+  }
+
+  .input-splitinput:nth-last-child(1) {
+    margin-right: 0;
+  } */
+
+  .daxorGrey.transparent {
+    background-color: rgba(0, 0, 0, 0);
+    border: none;
+    color: #22376c;
+  }
+
+  .btn-group.btn-group-toggle.stat-single,
+  .btn-group.btn-group-toggle {
+    border: 2px solid #22376c;
+  }
+
+  /* TOGGLEBUTTONS */
+  .btn-toggle {
+    margin: 0 4rem;
+    padding: 0;
+    position: relative;
+    border: none;
+    height: 1.5rem;
+    width: 3rem;
+    border-radius: 1.5rem;
+    color: #6b7381;
+    background: #22376c;
+  }
+
+  .btn-toggle:focus,
+  .btn-toggle:focus.active,
+  .btn-toggle.focus,
+  .btn-toggle.focus.active {
+    outline: none;
+  }
+
+  .btn-toggle:before,
+  .btn-toggle:after {
+    line-height: 1.5rem;
+    width: 4rem;
+    text-align: center;
+    font-weight: 600;
+    font-size: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    position: absolute;
+    bottom: 0;
+    transition: opacity 0.25s;
+  }
+
+  .btn-toggle:before {
+    content: "Male";
+    left: -4rem;
+  }
+
+  .btn-toggle:after {
+    content: "Female";
+    right: -4.5rem;
+    opacity: 0.15;
+  }
+
+  .btn-toggle.amp:before {
+    content: "No";
+  }
+
+  .btn-toggle.amp:after {
+    content: "Yes";
+    right: -4rem;
+  }
+
+  .btn-toggle>.handle {
+    position: absolute;
+    top: 0.1875rem;
+    left: 0.1875rem;
+    width: 1.125rem;
+    height: 1.125rem;
+    border-radius: 1.125rem;
+    background: #fff;
+    transition: left 0.25s;
+  }
+
+  .btn-toggle.active {
+    transition: background-color 0.25s;
+  }
+
+  .btn-toggle.active>.handle {
+    left: 1.6875rem;
+    transition: left 0.25s;
+  }
+
+  .btn-toggle.active:before {
+    opacity: 0.15;
+  }
+
+  .btn-toggle.active:after {
+    opacity: 1;
+  }
+
+  .btn-toggle.active {
+    background-color: #e582b9;
+  }
+
+  .btn-toggle.amp.active {
+    background-color: #d84831;
+  }
+
+  .btn.btn-toggle:hover {
+    border: none;
+    color: inherit;
+  }
+
+  .btn.focus,
+  .btn:focus {
+    box-shadow: none;
+  }
+
+  .toggle-row {
+    width: 100%;
+    padding: 0 1rem;
+  }
+
+  .content-left p,
+  .content-right p {
+    text-align: center;
+  }
+
+  .fancybox-active {
+    height: 100vh;
+  }
+
+  .statSingleStep span.rapid-number {
+    background-color: transparent;
+    color: #fff;
+    width: 25px;
+    height: 25px;
+    border-radius: 50%;
+    margin-right: 1rem;
+    font-size: 0.875em;
+  }
+
+  .statSingleStep.active span.rapid-number {
+    background-color: var(--daxor-blue);
+    color: #fff;
+    min-width: 70px;
+    min-height: 70px;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-right: 1rem;
+  }
+
+  .statSingleStep.active .first-p {
+    color: #212529;
+  }
+
+  .first-p {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 16px;
+    text-transform: capitalize;
+    color: #fff;
+  }
+
+  .statSingleStep {
+    float: left;
+    width: 100%;
+  }
+
+  .statSingleStep.active {
+    font-weight: 700;
+    transition-timing-function: ease;
+  }
+
+  /* .single-wrap {
+    display: flex;
+    justify-content: center;
+    flex-direction: column;
+    align-items: center;
+    padding: 0 2em;
+  } */
+
+  .outline-button {
+    display: inline-block;
+    background-color: transparent;
+    border: 2px solid var(--daxor-blue);
+    color: var(--daxor-blue);
+    border-radius: 0;
+    font-weight: 700;
+  }
+
+  .outline-button:hover,
+  .outline-button:active,
+  .outline-button:focus {
+    background-color: var(--daxor-blue);
+    color: #fff;
+  }
+
+  /* .form-control {
+    border: none;
+    border-radius: 0;
+    width: 100%;
+    margin-bottom: 8px;
+  } */
+
+  .btn-group-toggle {
+    margin-bottom: 0.5rem;
+  }
+
+  label.btn.btn-secondary.daxorGrey.userInputButton {
+    width: 50%;
+    height: 42px;
+  }
+
+  /* .statUserInputField {
+    height: 42px;
+  } */
+
+  .center-btn {
+    display: flex;
+    justify-content: center;
+  }
+
+  .center-btn input {
+    box-shadow: 1px 1px 15px 5px rgba(0, 0, 0, 0.2);
+  }
+
+  .progress {
+    height: 40px;
+    font-size: 1rem;
+    background-color: lightgray;
+    border-radius: 0;
+    max-width: 600px;
+    margin: 0 auto;
+  }
+
+  .pt-info-container {
+    max-width: 500px;
+    margin: 0 auto;
+  }
+
+  /* RESULTS PAGE */
+  .container {
+    height: 70vh;
+  }
+
+  h2 {
+    margin: 0 0 16px;
+    font-size: 36px;
+  }
+
+  .table {
+    box-shadow: var(--shadow);
+  }
+
+  .table thead th {
+    border: none;
+    text-align: center;
+  }
+
+  .table td,
+  .table th {
+    border: none;
+  }
+
+  .table tr:nth-child(even) {
+    background-color: #fff;
+  }
+
+  thead {
+    background-color: var(--daxor-blue);
+    color: #fff;
+  }
+
+  .table.rapid-results {
+    max-width: 500px;
+  }
+
+  .table td {
+    border: none;
+    text-align: center;
+  }
+
+  .bold-table {
+    text-align: right;
+  }
+
+  .red-flag {
+    background-color: #d4302a;
+    color: #fff;
+    font-weight: 700;
+    border: none;
+  }
+
+  .green-flag {
+    background-color: #389438;
+    color: #fff;
+    font-weight: 700;
+  }
+
+  #slick-slide05 {
+    position: relative;
+  }
+
+  #body-map {
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: auto;
+  }
+
+  .modal-backdrop.show {
+    display: none;
+  }
+
+  .single-wrap.slick-initialized.slick-slider.slick-dotted {
+    height: 64vh;
+  }
+</style>

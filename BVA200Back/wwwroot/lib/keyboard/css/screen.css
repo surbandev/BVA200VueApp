@@ -1,0 +1,20 @@
+﻿/* body 
+{ 
+	font-size: 72.5%;
+	background-color: #e2e2e2;
+	padding: 50px;
+}
+
+body, select, input, textarea, td
+{
+	font-family: "Lucida Sans Unicode", "Lucida Grande", Tahoma, Verdana, sans-serif;
+}
+
+input
+{
+    padding: 5px;
+} */
+
+.keyboard_trigger {
+	cursor: pointer;
+}

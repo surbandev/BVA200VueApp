@@ -1,0 +1,426 @@
+@using Newtonsoft.Json
+<link rel="stylesheet"
+      href="~/css/rapid-single-page.css" />
+
+<div id="app">
+  <div class="d-flex flex-column justify-content-end h-100">
+    <div class="rounded-card standard-wrap bg-white">
+      <div id="baselineDrawnDiv">
+        <!-- Counting the background section. -->
+        <div v-if="currentlyCounting == 'backgroundSpectrum'">
+          <h2 class="first-p mb-5 text-center"
+              id="baselineDrawnText">
+              Reading the background... &nbsp;&nbsp;&nbsp;
+          </h2>
+          <div>
+            <p class="notification my-5"
+               style="text-align: center">
+              We do this to ensure you are in a good location and the well is empty in order to provide you with the most accurate results.
+            </p>
+          </div>
+        </div>
+        <div v-else></div>
+        <!-- Counting the standard section. -->
+        <div v-if="currentlyCounting == '' && currentlyCounting != 'backgroundSpectrum' && !qcPassed"
+             style="text-align: center;">
+          <h2 class="first-p text-center"
+              id="baselineDrawnText">
+              Lets Calibrate! &nbsp;&nbsp;&nbsp;
+          </h2>
+          <div>
+            <p class="notification my-5"
+               style="text-align: center">
+              Place the standard into the well and click "Read" below when you are ready to proceed.
+            </p>
+          </div>
+          <div>
+            <input id="countStandardButton"
+                   type="button"
+                   class="btn btn-lg blueButton homeScreenButtonSixInchRight"
+                   value="Read"
+                   v-on:click="countStandard" />
+          </div>
+        </div>
+        <div v-else></div>
+        <div v-if="currentlyCounting == 'standardSpectrum'">
+          <h2 class="first-p mb-5 text-center"
+              id="countingStandardText"
+              style="text-align: center">
+            Counting standard... &nbsp;&nbsp;&nbsp;
+          </h2>
+        </div>
+        <div v-else></div>
+        <!-- QC PASSED OPTION -->
+        <h2 v-if="qcPassed"
+            style="text-align: center">
+          QC Passed! &nbsp;&nbsp;&nbsp;
+        </h2>
+        <div v-else></div>
+        <div id="counterProgressBarWrapper"
+             class="progress"
+             v-if="currentlyCounting">
+          <div id="counterProgressBar"
+               class="
+                progress-bar progress-bar-striped
+                bg-success
+                progress-bar-animated
+            "
+               style=""></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Vue logic lives here -->
+
+<script>
+  CreateTestParametersStepDrivenVue(@Html.Raw(JsonConvert.SerializeObject(Model)));
+  function CreateTestParametersStepDrivenVue(model) {
+    new Vue({
+      el: '#app',
+      data: {
+        // ALPHEBETICAL ORDER
+        backgroundCountTime: 1,
+        backgroundSpectrum: [],
+        centroid: 0,
+        cesium: 661,
+        count: 0,
+        countTime: 0.5,
+        currentlyCounting: "",
+        delta: 0,
+        fineGain: model.FineGain,
+        highChannel: model.HighChannel,
+        iterationMetaData: [],
+        iterationMetaDataString: "",
+        i131: 364,
+        lowChannel: model.LowChannel,
+        peaks: [],
+        qcPassed: false,
+        standard: "cesium",
+        standardCounting: false,
+        standardSpectrum: [],
+        tgain: 0,
+      },
+      async mounted() {
+        this.countBackground();
+      },
+      async beforeUnmount() {
+        await this.stopDataAquisition();
+        await closeReader();
+      },
+      methods: {
+        async countBackground() {
+          this.countSample("backgroundSpectrum");
+        },
+        async countStandard() {
+          this.countSample("standardSpectrum");
+        },
+        async countSample(sampleName) {
+          this.currentlyCounting = sampleName;
+          const context = this;
+          try {
+            if (sampleName == 'backgroundSpectrum') {
+              await this.openReader();
+            } else {
+              //standard
+              if (context.fineGain > 3999) {
+                console.log('FineGain out of scope.')
+                context.fineGain = 1500;
+                await context.setDetectorFineGain();
+                console.log('Fine Gain reset to ', context.fineGain);
+              }
+            }
+
+            // Clear previous data if any, then start a read and start a timer based on the Sample Count Time.
+            await clearMemory();
+            await startRead();
+            context.run(sampleName);
+          } catch (err) {
+            onFail(err, "Failed to start data aquisition");
+          }
+
+        },
+
+        // UTILITY METHODS ------------------------------------------------------------------------------------------------------------------------------------------------
+        startTimer: function (countForTime) {
+          const context = this;
+          var now = new Date();
+          var countDownDate = moment(now).add(countForTime, 'm').toDate();
+
+          this.queProgressBar("counterProgressBar", countForTime);
+
+          let intervalTimer = setInterval(function () {
+            var now = new Date().getTime();
+            // Find the distance between now and the count down date
+            var distance = countDownDate - now;
+
+            let textfield = document.getElementById("counterProgressBar");
+            if (textfield) {
+              var minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+              var seconds = Math.floor((distance % (1000 * 60)) / 1000);
+              var string = '<span class="progress-inner">' + minutes + 'm ' + seconds + 's remaining';
+
+              textfield.innerHTML = string;
+            }
+
+            // If the count down is finished, write some text
+            if (distance <= 0) {
+              clearInterval(intervalTimer);
+            }
+          }, 1000);
+        },
+        run(sampleName) {
+          const context = this;
+
+          let tCountTime = context.countTime;
+
+          if (sampleName === "backgroundSpectrum") {
+            tCountTime = context.backgroundCountTime;
+            context.count++;
+          }
+
+          this.startTimer(tCountTime);
+
+          setTimeout(function () {
+            context.updateSpectrum(sampleName);
+            context.currentlyCounting = "";
+            context.count++;
+          }, tCountTime * 60 * 1000);
+        },
+        async openReader() {
+          const context = this;
+          try {
+            await openTopazReader();
+            context.detectorOpen = true;
+          } catch (err) {
+            onFail(err, 'Failed to open Topaz Reader');
+          }
+        },
+        async closeReader() {
+          const context = this;
+          try {
+            await closeTopazReader();
+            context.detectorOpen = false;
+          } catch (err) {
+            onFail(err, 'Failed to close Topaz Reader');
+          }
+        },
+        async startDataAquisition() {
+          const context = this;
+          try {
+            await startRead();
+            context.run();
+          } catch (err) {
+            onFail(err, 'Failed to start data aquisition');
+            console.error(err);
+          }
+        },
+        async stopDataAquisition() {
+          const context = this;
+          try {
+            await stopRead();
+            if (context.interval) {
+              clearInterval(context.interval);
+            }
+            return;
+          } catch (err) {
+            onFail(err, 'Failed to stop data aquisition');
+            console.error(err);
+          }
+        },
+        async updateSpectrum(sampleName) {
+          await stopRead();
+          const context = this;
+          try {
+            const response = await readSpectrum();
+            context.spectrum = response.detectorSpectrum;
+            this.fineGain = response.fineGain;
+            var cs = response.calculatedSample;
+
+            if (cs && sampleName != 'backgroundSpectrum') {
+              context.tracer = cs.sampleName;
+              context.centroid = cs.centroid;
+              context.lowChannel = cs.lowChannel;
+              context.highChannel = cs.highChannel;
+              if (this.centroid <= 700 && this.centroid >= 600) {
+                this.standard = "cesium";
+              } else {
+                this.standard = "i131";
+              }
+              context.pushMetaData(context.iterationMetaData.length, context.centroid);
+              context.checkStandardCalibration();
+            }
+            context.reportSpectrum(sampleName);
+            return;
+          } catch (err) {
+            onFail("Failed to read spectrum.");
+            console.error(err);
+          }
+        },
+        reportSpectrum: function (sampleName) {
+          const context = this;
+          let counts = this.spectrum.slice(this.lowChannel, this.highChannel).reduce((acc, cur) => acc += cur, 0);
+
+          switch (sampleName) {
+            case "backgroundSpectrum":
+              context.backgroundSpectrum = context.spectrum;
+              context.backgroundSpectrumCounts = counts;
+              break;
+            case "standardSpectrum":
+              context.standardSpectrum.push({
+                spectrum: context.spectrum,
+                counts: counts
+              });
+              break;
+            default:
+              break;
+          }
+        },
+        pushMetaData(length, centroid) {
+          function Peaks(length, centroid) {
+            this.length = length;
+            this.centroid = centroid;
+          }
+          this.iterationMetaData.push(new Peaks(length, centroid));
+          var jsonString = JSON.stringify(this.iterationMetaData);
+          this.iterationMetaDataString = jsonString;
+        },
+        async checkStandardCalibration() {
+          try {
+            // Check to see if detector centroid is as expected for proper calibration.
+            const context = this;
+            let low = 308; let high = 420;
+            if (this.standard == 'cesium') { low = this.cesium - 3; high = this.cesium + 3; }
+            else { low = this.i131 - 3; high = this.i131 + 3; }
+            let iknownow = context.centroid;
+            if (context.centroid >= low && context.centroid <= high) {
+              context.qcPassed = true;
+              await context.updateDatabase();
+              await context.saveCalibration();
+              await context.closeReader();
+              console.log("PASSING CENTROID", this.centroid);
+              console.log("PASSING FINE GAIN", this.fineGain);
+            } else {
+              context.qcPassed = false;
+              context.calculateFineGainAdjust();
+              await context.setDetectorFineGain();
+              await context.countStandard();
+            }
+          } catch (err) {
+            onFail(err, 'Failed to check standard calibration');
+          }
+        },
+
+        // ADJUST THE FINE GAIN TO AUTO CALIBRATE THE NEEDED FINE GAIN FOR A KNOWN CENTROID.....
+        calculateFineGainAdjust: async function () {
+          let standard = this.standard == "cesium" ? this.cesium : this.i131;
+          const numChannels = 4095;
+          console.log('centroid', this.centroid);
+          console.log('OG Fine Gain', this.fineGain);
+          let ogFG = this.fineGain / numChannels;
+          console.log('ogFG', ogFG);
+          ogFG++;
+          console.log('+ogFG', ogFG);
+          ogFG = (ogFG * standard) / this.centroid;
+          console.log('*ogFG', ogFG);
+          ogFG--;
+          console.log('-ogFG', ogFG);
+          this.fineGain = Math.ceil(ogFG * numChannels);
+          console.log('New Fine Gain', this.fineGain);
+          await this.setDetectorFineGain();
+        },
+        async updateDatabase() {
+          const url = "TopazDetector/SaveFineGainCalibration"
+          const payload = {
+            FineGain: parseInt(this.fineGain),
+            Detector: "Topaz"
+          };
+          try {
+            await axios.post(url, payload);
+          } catch (err) {
+            console.error(err);
+            onFail(err, "Detector settings failed to update in database.");
+          }
+        },
+        async saveCalibration() {
+          const url = "TopazDetector/SaveCalibration"
+          const payload = {
+            Timestamp: isoUTCNow(),
+            Standard: this.standard,
+            StoredPeaks: this.iterationMetaDataString
+          };
+          try {
+            await axios.post(url, payload);
+          } catch (err) {
+            console.error(err);
+            onFail(err, "Detector settings failed to update in database.");
+          }
+        },
+        async setDetectorFineGain() {
+          // AcqMode 0 = Pulse Height Analysis Mode (PHA), 1 = Multi-channel Scaling Mode (MCS)
+          const context = this;
+          try {
+            const payload = {
+              FineGain: parseInt(this.fineGain),
+            };
+
+            await updateDetectorFineGain(payload);
+            await context.updateDatabase();
+            return;
+          } catch (err) {
+            onFail(err, "Failed to update detector settings");
+          }
+        },
+        //  UTILITY METHODS
+        queProgressBar: function (progressBarName, minutes) {
+          const context = this;
+          const progressBar = document.getElementById(progressBarName);
+          if (!progressBar) {
+            setTimeout(() => {
+              context.queProgressBar(progressBarName, minutes);
+            }, 1000);
+            return;
+          }
+          if (progressBar) {
+            progressBar.animate([
+              // keyframes
+              { width: '0' },
+              { width: '100%' }
+            ], {
+              // timing options
+              duration: minutes * 60 * 1000,
+              iterations: 1
+            });
+          }
+        },
+        ...vueMethods
+      }
+    })
+  }
+  feather.replace();
+</script>
+<style scoped>
+  #counterProgressBar {
+    width: 0;
+    transition: width 300s;
+    transition-timing-function: linear;
+  }
+
+  #counterProgressBar.loaded {
+    width: 100%;
+  }
+
+  .progress {
+    height: 40px;
+    font-size: 1rem;
+    background-color: lightgray;
+    border-radius: 0;
+    max-width: 600px;
+    margin: 0 auto;
+  }
+
+  .progress-inner {
+    padding: 0 1em;
+  }
+</style>

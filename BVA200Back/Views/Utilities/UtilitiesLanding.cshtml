@@ -1,0 +1,127 @@
+@using Newtonsoft.Json
+
+<div id="app">
+    <div class="container btn-wrap d-flex flex-column align-items-center justify-content-center h-100">
+        <input type="button"
+               class="btn btn-lg blueButton mb-5"
+               v-on:click="goto('DetectorSetup')"
+               value="Detector Setup" />
+        <input type="button"
+               class="btn btn-lg blueButton mb-5"
+               v-on:click="goto('UserConfiguration')"
+               value="User Configuration" />
+        <input type="button"
+               class="btn btn-lg blueButton mb-5"
+               v-on:click="goto('ManualCalc')"
+               value="Manual Calculation" />
+        <input type="button"
+               class="btn btn-lg blueButton mb-5"
+               v-on:click=""
+               value="Help" />
+        <input type="button"
+               class="btn btn-lg blueButton mb-5"
+               v-on:click=""
+               value="Tutorials" />
+        <input type="button"
+               class="btn btn-lg blueButton mb-5"
+               v-on:click="testTTS"
+               value="TTS Test" />
+        <!--<input v-if="isAdmin == 'Yes'" type="button" class="btn btn-lg blueButton mb-5" data-fancybox data-src="#confirmationModal" value="Maintenance Mode" />-->
+    </div>
+    <!-- Modal -->
+    <div id="confirmationModal"
+         style="display: none">
+        <div class="container-body mt-5">
+            <p class="modal-copy">
+            <ol>
+                <li>1.) Unplug all USB devices EXCEPT the Topaz Reader.</li>
+                <li>2.) When prompted, enter the root password to the host OS.</li>
+                <li>3.) After you correctly enter the root password, the USB Ports
+                    will be unlocked and the BVA200 application will close.
+                </li>
+                <li>4.) After the BVA200 application is closed, you may plug in any
+                    USB device such as keyboard, mouse, and storage device.
+                </li>
+                <li>5.) Upon completing maintenance, YOU MUST REBOOT THE DEVICE YOURSELF.</li>
+            </ol>
+            Do you understand and wish to proceed?
+            </p>
+        </div>
+        <div class="icon-wrap d-flex justify-content-around mt-5">
+            <input type="button"
+                   class="btn btn-lg blueButton homeScreenButtonSixInchRight"
+                   v-on:click="enterMaintenanceMode"
+                   value="Yes" />
+            <input type="button"
+                   class="btn btn-lg blueButton homeScreenButtonSixInchRight"
+                   v-on:click="closeFancyBox"
+                   value="No" />
+        </div>
+    </div>
+</div>
+
+@* Vue logic lives here *@
+<script>
+    CreateUtilitiesVue(@Html.Raw(JsonConvert.SerializeObject(Model)));
+
+    function CreateUtilitiesVue(model) {
+        new Vue({
+            el: '#app',
+            data: {
+            },
+            methods: {
+                testTTS: function () {
+                    tts("This is a test of the Text To Speech system");
+                },
+                closeFancyBox: function () {
+                    $.fancybox.close();
+                },
+                enterMaintenanceMode: function () {
+                    this.closeFancyBox();
+                    console.log("ENTERING MAINTENANCE MODE");
+                    const context = this;
+                    const url = baseURL + "Utilities/MaintenanceMode?UserSessionGuid=" + this.currentUserSession;
+                    const payload = {
+                        UserSessionGUID: context.currentUserSession
+                    }
+                    axios.post(url, payload).then(function (response) {
+                        console.log("RESPONSE", response)
+                        switch (response.status) {
+                            case 200:
+                                console.log("GOT A 200")
+                                /*
+                                The controller should automatically close the browser at this point.
+                                If it doesn't, show toast saying "Plug in your devices now"
+                                */
+                                context.onSuccess("Press Alt+F4 to gain access to the OS", "USB Ports Enabled");
+                                break;
+                            default:
+                                context.onFail(response);
+                                break;
+                        }
+                    }).catch((x) => {
+                        console.log("FAIL", x)
+                        context.onFail("Failed to enter Maintenance Mode", "Error");
+                    });
+                },
+                ...vueMethods
+            }
+        })
+    }
+    feather.replace();
+</script>
+
+<style scoped>
+    body {
+        background-image: none;
+        background-color: #ededed;
+    }
+
+    .btn-wrap input {
+        width: 400px;
+    }
+
+    #app {
+        height: 100%;
+    }
+</style>

@@ -1,0 +1,461 @@
+@using Newtonsoft.Json
+<div id="app">
+  <div class="d-flex flex-column justify-content-end h-100">
+    <div class="rounded-card standard-wrap bg-white">
+      <div v-if="backgroundCounting">
+        <h2 class="first-p mb-5 text-center"
+            id="baselineDrawnText">
+            Reading the background... &nbsp;&nbsp;&nbsp;
+        </h2>
+        <div>
+          <p class="notification my-5"
+              style="text-align: center">
+            We do this to ensure you are in a good location and the well is empty in order to provide you with the most accurate results.
+          </p>
+        </div>
+        <div id="counterProgressBarWrapper"
+             class="progress"
+             v-if="countStatus">
+          <div id="counterProgressBar"
+               class="
+                progress-bar progress-bar-striped
+                bg-success
+                progress-bar-animated">
+          </div>
+        </div>
+      </div>
+      <div v-else>
+        <div v-if="count == 1 && !countStatus">
+          <h2 class="first-p mb-5 text-center"
+              id="baselineDrawnText">
+              Lets check the Linearity! &nbsp;&nbsp;&nbsp;
+          </h2>
+          <div>
+            <p class="notification my-5"
+                style="text-align: center">
+                Place low strength Ba-133 sample in the detector and enter the strength in the field below. Then click "Read" below to begin.
+            </p>
+          </div>
+          <div class="mb-3">
+            <label class="input-label"
+                    for="lowStrengthNc">Nc: </label>
+            <input class="form-control restyled"
+                    type="text"
+                    inputmode="numeric"
+                    id="lowStrengthNc"
+                    v-model="lowStrengthNc"
+                    name="lowStrengthNc" />
+          </div>
+          <button v-if="!backgroundCounting && lowStrengthNc"
+                  type="button"
+                  class="btn btn-md blueButton"
+                  v-on:click="countSample('lowCount')">Count</button>
+        </div>
+        <div v-if="count == 2 && !countStatus">
+          <h2 class="first-p mb-5 text-center"
+              id="baselineDrawnText">
+              Lets check the Linearity! &nbsp;&nbsp;&nbsp;
+          </h2>
+          <div>
+            <p class="notification my-5"
+                style="text-align: center">
+                Place medium strength Ba-133 sample in the detector and enter the strength in the field below. Then click "Read" below to begin.
+            </p>
+          </div>
+          <div class="mb-3">
+            <label class="input-label"
+                   for="mediumStrengthNc">Nc: </label>
+            <input class="form-control restyled"
+                   type="text"
+                   inputmode="numeric"
+                   id="mediumStrengthNc"
+                   v-model="mediumStrengthNc"
+                   name="mediumStrengthNc" />
+          </div>
+          <button v-if="!backgroundCounting && mediumStrengthNc"
+                  type="button"
+                  class="btn btn-md blueButton"
+                  v-on:click="countSample('mediumCount')">Count</button>
+        </div>
+        <div v-if="count == 3 && !countStatus">
+          <h2 class="first-p mb-5 text-center"
+              id="baselineDrawnText">
+              Lets check the Linearity! &nbsp;&nbsp;&nbsp;
+          </h2>
+          <div>
+            <p class="notification my-5"
+                style="text-align: center">
+                Place high strength Ba-133 sample in the detector and enter the strength in the field below. Then click "Read" below to begin.
+            </p>
+          </div>
+          <div class="mb-3">
+            <label class="input-label"
+                   for="highStrengthNc">Nc: </label>
+            <input class="form-control restyled"
+                   type="text"
+                   inputmode="numeric"
+                   id="highStrengthNc"
+                   v-model="highStrengthNc"
+                   name="highStrengthNc" />
+          </div>
+          <button v-if="!backgroundCounting && highStrengthNc"
+                  type="button"
+                  class="btn btn-md blueButton"
+                  v-on:click="countSample('highCount')">Count</button>
+        </div>
+      </div>
+      <div v-if="roiCounts > 0 && countStatus"
+           style="text-align: center;">
+        {{ roiCounts }} of 10k counts needed.
+      </div>
+      <div v-if="qcComplete"
+           class="scanTracerDoseStatLine center-btn mt-5">
+        <span>Low Strength CPM = {{ lowSpectrum.cpm }}</span></br>
+        <span>Medium Strength CPM = {{ mediumSpectrum.cpm }}</span></br>
+        <span>High Strength CPM = {{ highSpectrum.cpm }}</span></br>
+        <span>{{ qcStatus }}</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Vue logic lives here -->
+<script src="~/js/bvaCalc.js"></script>
+<script>
+  CreateLinearityVue(@Html.Raw(JsonConvert.SerializeObject(Model)));
+  function CreateLinearityVue(model) {
+    new Vue({
+      el: '#app',
+      data: {
+        backgroundCounting: false,
+        backgroundCountTime: 1,
+        backgroundCounts: 0,
+        backgroundSpectrum: [],
+        count: 0,
+        countStatus: false,
+        countTime: 45,
+        centroid: 0,
+        detectorOpen: false,
+        highChannel: 420,
+        highStrengthNc: null,
+        intervalTimer: null,
+        linearityResult: null,
+        linearityFailedPoint: null,
+        lowChannel: 308,
+        lowStrengthNc: null,
+        mediumStrengthNc: null,
+        qcComplete: false,
+        qcStatus: 'Failed',
+        qcFailPoint: null,
+        realTime: 0,
+        roiCounts: 0,
+        roiCPM: {},
+        storedCPM: model.CPM,
+        storedQCTimestamp: model.Timestamp,
+        spectrum: [],
+        updateInterval: 500,
+
+        // SPECTRUMS AND THEIR COUNTS
+        backgroundSpectrum: {},
+        lowSpectrum: {},
+        mediumSpectrum: {},
+        highSpectrum: {},
+      },
+      async mounted() {
+        this.countBackground();
+      },
+      async beforeUnmount() {
+        await stopRead();
+        await closeReader();
+      },
+      computed: {
+        timestampConverted() {
+          let time = {
+            low: this.lowSpectrum.timestamp.toLocaleString(),
+            medium: this.mediumSpectrum.timestamp.toLocaleString(),
+            high: this.highSpectrum.timestamp.toLocaleString()
+          }
+          return time;
+        },
+        calculatedPercentage() {
+          let currentCPM = Math.round(this.roiCPM.cpm);
+          let storedCPM = Math.round(this.storedCPM);
+          let difference_In_Time = new Date(this.storedQCTimestamp).getTime() - new Date(this.roiCPM.timestamp).getTime();
+          let difference_In_Days = difference_In_Time / (1000 * 3600 * 24);
+
+          // t needs to equal how many days occured between original vs now.
+          let a0 = storedCPM * 2 ^ (difference_In_Days / 11018);
+          let result = Math.round((a0 / 100) * 5);
+
+          let low = currentCPM - result;
+          let high = currentCPM + result;
+
+          if (storedCPM <= high && storedCPM >= low) {
+            return "Passed!";
+          } else {
+            return "Fail";
+          }
+        }
+      },
+      methods: {
+        async countBackground() {
+          this.countSample("backgroundSpectrum");
+        },
+        async countStandard() {
+          this.countSample("standardSpectrum");
+        },
+
+        // UTILITY METHODS ------------------------------------------------------------------------------------------------------------------------------------------------
+        async countSample(sampleName) {
+          const context = this;
+          try {
+            if (sampleName == 'backgroundSpectrum') {
+              await context.openReader();
+              context.backgroundCounting = true;
+            } else {
+              //standard
+              if (context.fineGain > 3999) {
+                console.log('FineGain out of scope.')
+                context.fineGain = 1500;
+                await context.setDetectorFineGain();
+                console.log('Fine Gain reset to ', context.fineGain);
+              }
+            }
+
+            // Clear previous data if any, then start a read and start a timer based on the Sample Count Time.
+            await clearMemory();
+            await startRead();
+            context.run(sampleName);
+          } catch (err) {
+            onFail(err, "Failed to start data aquisition");
+          }
+
+        },
+        run(sampleName) {
+          const context = this;
+          context.countStatus = true;
+          context.count++;
+          context.startTimer(context.backgroundCountTime);
+          if (context.backgroundCounting) {
+            setTimeout(() => {
+              context.updateSpectrum(sampleName);
+              context.stopDataAquisition();
+              context.backgroundCounting = false;
+            }, context.backgroundCountTime * 60 * 1000);
+          } else {
+            const context = this;
+            this.intervalTimer = setInterval(() => this.updateSpectrum(sampleName), context.updateInterval)
+          }
+        },
+        async updateSpectrum(sampleName) {
+          const context = this;
+          try {
+            const response = await readSpectrum();
+            context.spectrum = response.detectorSpectrum;
+            context.fineGain = response.fineGain;
+            context.realTime = response.realTime;
+            var cs = response.calculatedSample;
+
+            if (cs && sampleName != 'backgroundSpectrum') {
+              context.tracer = cs.sampleName;
+              context.centroid = cs.centroid;
+              context.lowChannel = cs.lowChannel;
+              context.highChannel = cs.highChannel;
+              if (this.centroid <= 700 && this.centroid >= 600) {
+                this.standard = "cesium";
+              } else {
+                this.standard = "i131";
+              }
+            }
+            context.reportSpectrum(sampleName);
+            return;
+          } catch (err) {
+            onFail("Failed to read spectrum.");
+            console.error(err);
+          }
+        },
+        reportSpectrum: function (sampleName) {
+          const context = this;
+          const countTime = context.realTime;
+          if (sampleName == 'backgroundSpectrum') {
+            context.backgroundCounts = context.spectrum.slice(context.lowChannel, context.highChannel).reduce((acc, cur) => acc += cur, 0);;
+          }
+          let counts = context.spectrum.slice(context.lowChannel, context.highChannel).reduce((acc, cur) => acc += cur, 0);
+          context.roiCounts = counts - (context.backgroundCounts * parseFloat(context.realTime / 60)).toFixed(2);
+          context.roiCPM = context.roiCounts / countTime;
+          let roiCPM = { timestamp: isoUTCNow(), cpm: context.roiCPM.toFixed(1) };
+
+          if (counts >= 10000 || sampleName == 'backgroundSpectrum') {
+            context.stopDataAquisition();
+            clearInterval(context.intervalTimer);
+            if (sampleName == 'highCount') {
+              context.qcComplete = true;
+              context.roiCounts = 0;
+              let cpmArray = [Number(context.lowSpectrum.cpm), Number(context.mediumSpectrum.cpm), Number(context.highSpectrum.cpm)];
+              let strengthArray = [parseFloat(context.lowStrengthNc), parseFloat(context.mediumStrengthNc), parseFloat(context.highStrengthNc)];
+              let linearity = context.calcLinearRegression(cpmArray, strengthArray);
+            }
+          }
+
+          switch (sampleName) {
+            case "backgroundSpectrum":
+              context.backgroundSpectrum = { counts: counts, cpm: parseFloat(roiCPM.cpm), timestamp: parseFloat(context.realTime / 60), spectrum: context.spectrum };
+              break;
+            case "lowCount":
+              context.lowSpectrum = { counts: context.roiCounts, cpm: parseFloat(roiCPM.cpm), timestamp: parseFloat(context.realTime / 60), spectrum: context.spectrum };
+              break;
+            case "mediumCount":
+              context.mediumSpectrum = { counts: context.roiCounts, cpm: parseFloat(roiCPM.cpm), timestamp: parseFloat(context.realTime / 60), spectrum: context.spectrum };
+              break;
+            case "highCount":
+              context.highSpectrum = { counts: context.roiCounts, cpm: parseFloat(roiCPM.cpm), timestamp: parseFloat(context.realTime / 60), spectrum: context.spectrum };
+              break;
+            default:
+              break;
+          }
+        },
+        async saveQCLinearity(type) {
+          const context = this;
+          let url = type === "log" ? "QC/SaveQCLog" : "QC/SaveQC";
+          let result = this.qcStatus == 'Passed';
+          const payload = {
+            TestType: 'Linearity',
+            Timestamp: isoUTCNow(),
+            Counts: 10000,
+            CPM: parseInt(context.highSpectrum.cpm),
+            Result: result
+          }
+          try {
+            axios.post(url, payload).then(function (response) {
+              onSuccess("QC Linearity Saved successfully", "Saved");
+              console.log(response.data);
+            });
+          } catch (err) {
+            onFail("Failed To Save", "Failed");
+          }
+        },
+        startTimer: function (countForTime) {
+          const context = this;
+          var now = new Date();
+          var countDownDate = moment(now).add(countForTime, 'm').toDate();
+
+          this.queProgressBar("counterProgressBar", countForTime);
+
+          let intervalTimer = setInterval(function () {
+            var now = new Date().getTime();
+            // Find the distance between now and the count down date
+            var distance = countDownDate - now;
+
+            let textfield = document.getElementById("counterProgressBar");
+            if (textfield) {
+              var minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+              var seconds = Math.floor((distance % (1000 * 60)) / 1000);
+              var string = '<span class="progress-inner">' + minutes + 'm ' + seconds + 's remaining';
+
+              textfield.innerHTML = string;
+            }
+
+            // If the count down is finished, write some text
+            if (distance <= 0) {
+              clearInterval(intervalTimer);
+            }
+          }, 1000);
+        },
+        queProgressBar: function (progressBarName, minutes) {
+          const context = this;
+          const progressBar = document.getElementById(progressBarName);
+          if (!progressBar) {
+            setTimeout(() => {
+              context.queProgressBar(progressBarName, minutes);
+            }, 1000);
+            return;
+          }
+          if (progressBar) {
+            progressBar.animate([
+              // keyframes
+              { width: '0' },
+              { width: '100%' }
+            ], {
+              // timing options
+              duration: minutes * 60 * 1000,
+              iterations: 1
+            });
+          }
+        },
+        calcLinearRegression: function (xArray, yArray) {
+          const context = this;
+          const getSlopeInterceptForRegression = ((xArray, yArray) => {
+            console.log('xArray', xArray);
+            console.log('yArray', yArray);
+            // Calculate Sums
+            var xSum = 0, ySum = 0, xxSum = 0, xySum = 0, yySum = 0;
+            var count = xArray.length;
+            for (var i = 0; i < count; i++) {
+              xSum += xArray[i];
+              ySum += yArray[i];
+              xySum += xArray[i] * yArray[i];
+              xxSum += xArray[i] * xArray[i];
+              yySum += yArray[i] * yArray[i];
+            }
+
+            // Calculate slope and intercept
+            var slope = (count * xySum - xSum * ySum) / (count * xxSum - xSum * xSum);
+            // var intercept = (ySum / count) - (slope * xSum) / count;
+            var intercept = 0;
+            var result = Math.pow((count * xySum - xSum * ySum) / Math.sqrt((count * xxSum - xSum * xSum) * (count * yySum - ySum * ySum)), 2)
+            return slope;
+          });
+          let slope = getSlopeInterceptForRegression(xArray, yArray);
+          let pointOne = (xArray[0] * slope) / yArray[0];
+          let pointTwo = (xArray[1] * slope) / yArray[1];
+          let pointThree = (xArray[2] * slope) / yArray[2];
+          if (pointOne < 0.95 || pointOne > 1.05) {
+            context.failPoint = pointOne;
+          }
+          if (pointTwo < 0.95 || pointTwo > 1.05) {
+            context.failPoint = pointTwo;
+          }
+          if (pointThree < 0.95 || pointThree > 1.05) {
+            context.failPoint = pointThree;
+          } else {
+            context.qcStatus = 'Passed'
+            this.saveQCLinearity("log");
+          }
+
+        },
+
+        async stopDataAquisition() {
+          const context = this;
+          try {
+            await stopRead();
+            context.countStatus = false;
+            return;
+          } catch (err) {
+            onFail(err, 'Failed to stop data aquisition');
+            console.error(err);
+          }
+        },
+        async openReader() {
+          const context = this;
+          try {
+            await openTopazReader();
+            context.detectorOpen = true;
+          } catch (err) {
+            onFail(err, 'Failed to open Topaz Reader');
+          }
+        },
+        async closeReader() {
+          const context = this;
+          try {
+            await closeTopazReader();
+            context.detectorOpen = false;
+          } catch (err) {
+            onFail(err, 'Failed to close Topaz Reader');
+          }
+        },
+        ...vueMethods
+      }
+    })
+  }
+  feather.replace();
+</script>

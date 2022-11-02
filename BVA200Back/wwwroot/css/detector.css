@@ -1,0 +1,92 @@
+:root {
+  --daxor-blue: #363C59;
+}
+
+.card.content-left {
+  background-color: #ededed;
+}
+
+.card.content-left,
+.card.content-right {
+  border: none;
+  border-radius: 0;
+}
+
+.wrapper {
+  display: flex;
+}
+
+.homeScreenButtonSixInchLeft.detector-btn,
+.homeScreenButtonSixInchRight.detector-btn {
+  min-width: 100px;
+}
+
+.card.measurements {
+  background-color: transparent;
+}
+
+h5.card-header {
+  color: #fff;
+  background-color: rgba(0, 0, 0, 0.5);
+}
+
+.measurements-text {
+  font-size: 0.875em;
+}
+
+#settings-btn {
+  margin-top: 1rem;
+}
+
+.card-body {
+  flex: 0;
+}
+
+.card-header:first-child {
+  border-radius: 0;
+}
+
+.measure-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+
+#detector-settings {
+  display: none;
+}
+
+.fas.fa-cog {
+  color: #fff;
+}
+
+.gear-icon {
+  float: right;
+}
+
+.measurement-table tr:nth-child(even) {
+  background-color: #fff;
+}
+
+.measurement-table tr:nth-child(odd) {
+  background-color: #ededed;
+}
+
+.measurement-table tr td {
+  font-size: 0.875em;
+  padding: 0.5em 0.875em;
+}
+
+.form-control {
+  border-radius: 0;
+}
+
+.form-control:focus {
+  border-color: inherit;
+  box-shadow: none;
+}
+
+.input-group {
+  padding-top: 0.5rem;
+  justify-content: center;
+}

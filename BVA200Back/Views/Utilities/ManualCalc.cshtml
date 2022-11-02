@@ -1,0 +1,2568 @@
+@using Newtonsoft.Json
+<link rel="stylesheet"
+      href="~/css/slick-custom.css" />
+
+<div id="app">
+    <div class="d-flex flex-column justify-content-end h-100">
+        <div class="lab-mode-nav">
+            <i data-slide="0"
+               class="fas fa-info-circle active"
+               id="step1"></i>
+            <i data-slide="1"
+               class="fas fa-list-ol"
+               id="step2"></i>
+            <i data-slide="2"
+               class="fas fa-address-card"
+               id="step3"></i>
+            <i data-slide="3"
+               class="fas fa-check-circle"
+               id="step4"
+               v-on:click="calculateBVA"></i>
+        </div>
+        <div id="counterProgressBarWrapper"
+             class="progress"
+             v-bind:style="{ visibility: detectorInUse, height: detectorInUse ? '25px' : '0px' }">
+            <div id="counterProgressBar"
+                 class="
+                    progress-bar progress-bar-striped
+                    bg-success
+                    progress-bar-animated
+                "></div>
+        </div>
+        <div id="tracerDisseminationTimerDisplay"></div>
+        @* SLICK *@
+        <div class="slider"
+             id="slick-slider">
+            @* TEST SETUP *@
+            <div class="single-item"
+                 id="base">
+                <div class="rounded-card standard-wrap bg-white">
+                    <h4 class="lab-heading">
+                        Test Setup
+                    </h4>
+
+                    <div class="mb-3">
+                        <label class="input-label"
+                               for="injectateLotNumber">Injectate Lot #</label>
+                        <input class="form-control restyled"
+                               type="text"
+                               inputmode="text"
+                               id="injectateLotNumber"
+                               v-model="injectateLotNumber"
+                               name="injectateLotNumber" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="input-label"
+                               for="standardStrength">Standard Strength (Nc)</label>
+                        <input class="form-control restyled"
+                               type="text"
+                               inputmode="numeric"
+                               id="standardStrength"
+                               v-model="standardStrength" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="input-label"
+                               for="tracerDisMins">Tracer Dissemination Mins:</label>
+                        <input class="form-control restyled"
+                               type="time"
+                               step="1"
+                               inputmode="numeric"
+                               id="tracerDisMins"
+                               v-model="tracerDisMins"
+                               name="tracerDisMins" />
+                    </div>
+                    <!-- <div class="mb-3">
+                        <label class="input-label"
+                               for="standardCountTime">Standard Count Time:</label>
+                        <input class="form-control restyled"
+                               type="text"
+                               inputmode="numeric"
+                               id="standardCountTime"
+                               v-model="standardCountTime"
+                               name="standardCountTime" />
+                    </div> -->
+                    <div class="mb-3">
+                        <label class="input-label"
+                               for="sampleCountMins">Sample Count Mins:</label>
+                        <input class="form-control restyled"
+                               type="text"
+                               inputmode="numeric"
+                               id="sampleCountMins"
+                               v-model="sampleCountMins"
+                               name="sampleCountMins" />
+                    </div>
+                </div>
+            </div>
+            @* SAMPLE DATA *@
+            <div class="single-item">
+                <div class="rounded-card standard-wrap bg-white">
+                    <h4 class="mb-3 lab-heading">
+                        Sample Data
+                    </h4>
+                    @* NON-TABLE SOLUTION *@
+                    <div class="container sample-table">
+                        <div class="row background mt-4">
+                            <div class="col-4 d-flex align-items-center"><strong>Background</strong></div>
+                            <div class="col-4 d-flex align-items-center"></div>
+                            <div class="col-4 d-flex align-items-center input-wrap position-relative">
+                                <span class="micro-label">Count</span>
+                                <input type="text"
+                                       class="form-control restyled sample"
+                                       inputmode="numeric"
+                                       v-model="backgroundCount" />
+                            </div>
+                        </div>
+                        <div class="row count-btn">
+                            <input type="button"
+                                   id="btnCountBackground"
+                                   class="btn btn-lg greenButton mt-3"
+                                   :value="this.countButtonText(this.backgroundSpectrumCountsArray)"
+                                   v-on:click="countSample('backgroundSpectrum')" />
+                        </div>
+                        <hr>
+                        <div class="row standard mt-4">
+                            <div class="col-4 d-flex align-items-center"><strong>Standard</strong></div>
+                            <div class="col-4 d-flex align-items-center"></div>
+                            <div class="col-4 d-flex align-items-center input-wrap position-relative">
+                                <span class="micro-label">Count</span>
+                                <input type="text"
+                                       class="form-control restyled sample"
+                                       inputmode="numeric"
+                                       v-model="standardCount"
+                                       :disabled="!readyToCountStandard" />
+                            </div>
+                        </div>
+                        <div class="row count-btn">
+                            <input type="button"
+                                   id="btnCountStandard"
+                                   class="btn btn-lg greenButton my-2"
+                                   :value="this.countButtonText(this.standardSpectrum)"
+                                   v-on:click="countSample('standardSpectrum')"
+                                   :disabled="!readyToCountStandard" />
+                        </div>
+                        <hr>
+                        <div class="mb-3">
+                            <label class="input-label"
+                                   for="doseInjectionTimestamp">Dose Injection Time</label>
+                            <div id="doseInjectionTimestamp"
+                                 class="form-control restyled"> </div>
+                            <input type="hidden"
+                                   id="doseInjectionTimestampValue" />
+                        </div>
+                        <hr>
+                        <div class="row baseline mt-4">
+                            <div class="col-4 d-flex align-items-center"><strong>Baseline</strong></div>
+                            <div class="col-4 d-flex align-items-center"></div>
+                            <div class="col-4 d-flex align-items-center input-wrap position-relative">
+                                <span class="micro-label">Count</span>
+                                <input type="text"
+                                       class="form-control restyled sample"
+                                       inputmode="numeric"
+                                       v-model="baselineCount"
+                                       :disabled="!readyToCountBaseline" />
+                            </div>
+                        </div>
+                        <div class="row count-btn">
+                            <input type="button"
+                                   id="btnCountBaseline"
+                                   class="btn btn-lg greenButton my-2"
+                                   :value="this.countButtonText(this.baselineSpectrum)"
+                                   v-on:click="countSample('baselineSpectrum')"
+                                   :disabled="!readyToCountBaseline" />
+                        </div>
+                        <hr>
+                        <div class="row sample-one mt-4">
+                            <div class="col-1 d-flex align-items-center"><strong>1</strong></div>
+                            <div class="col-3 d-flex align-items-center input-wrap position-relative">
+                                <span class="micro-label">Hct</span>
+                                @* hct *@
+                                <input type="text"
+                                       id="sample1Hct"
+                                       class="form-control restyled sample"
+                                       inputmode="numeric"
+                                       v-model="postInjection1.phct"
+                                       :disabled="!readyToCountSample1" />
+                            </div>
+                            <div class="col-4 d-flex align-items-center input-wrap position-relative">
+                                <span class="micro-label">Time</span>
+                                @* time *@
+                                <div id="sample1Timestamp"
+                                     class="form-control restyled sample"></div>
+                                <input type="hidden"
+                                       id="sample1TimestampValue" />
+                            </div>
+                            <div class="col-4 d-flex align-items-center input-wrap position-relative">
+                                <span class="micro-label">Count</span>
+                                @* Count *@
+                                <input type="text"
+                                       class="form-control restyled sample"
+                                       inputmode="numeric"
+                                       v-model="postInjection1.counts"
+                                       :disabled="!readyToCountSample1" />
+                            </div>
+                        </div>
+                        <div class="row count-btn d-flex align-items-center">
+                            <div class="col-8 px-0">
+                                <input type="button"
+                                       id="btnCountSample1"
+                                       class="btn btn-lg greenButton my-2"
+                                       :value="this.countButtonText(this.postInjection1.spectrum)"
+                                       v-on:click="countSample('postInjection1')"
+                                       :disabled="!readyToCountSample1" />
+                            </div>
+                            <div class="col-4 px-0 d-flex justify-content-end">
+                                <input type="checkbox"
+                                       id="chkIncludeSample1"
+                                       class="mr-2"
+                                       v-model="postInjection1.included">
+                                <label for="includeSample1"
+                                       class="mb-0 guided-label">Include?</label>
+                            </div>
+                        </div>
+                        <hr>
+                        <div class="row sample-two mt-4">
+                            <div class="col-1 d-flex align-items-center"><strong>2</strong></div>
+                            <div class="col-3 d-flex align-items-center input-wrap position-relative">
+                                <span class="micro-label">Hct</span>
+                                @* hct *@
+                                <input type="text"
+                                       id="sample2Hct"
+                                       class="form-control restyled sample"
+                                       inputmode="numeric"
+                                       v-model="postInjection2.phct"
+                                       :disabled="!readyToCountSample2" />
+                            </div>
+                            <div class="col-4 d-flex align-items-center input-wrap position-relative">
+                                <span class="micro-label">Time</span>
+                                @* time *@
+                                <div id="sample2Timestamp"
+                                     class="form-control restyled sample"></div>
+                                <input type="hidden"
+                                       id="sample2TimestampValue" />
+                            </div>
+                            <div class="col-4 d-flex align-items-center input-wrap position-relative">
+                                <span class="micro-label">Count</span>
+                                @* Count *@
+                                <input type="text"
+                                       class="form-control restyled sample"
+                                       inputmode="numeric"
+                                       v-model="postInjection2.counts"
+                                       :disabled="!readyToCountSample2" />
+                            </div>
+                        </div>
+                        <div class="row count-btn d-flex align-items-center">
+                            <div class="col-8 px-0">
+                                <input type="button"
+                                       id="btnCountSample2"
+                                       class="btn btn-lg greenButton my-2"
+                                       :value="this.countButtonText(this.postInjection2.spectrum)"
+                                       v-on:click="countSample('postInjection2')"
+                                       :disabled="!readyToCountSample2" />
+                            </div>
+                            <div class="col-4 px-0 d-flex justify-content-end">
+                                <input type="checkbox"
+                                       id="chkIncludeSample2"
+                                       class="mr-2"
+                                       v-model="postInjection2.included">
+                                <label for="includeSample2"
+                                       class="mb-0 guided-label">Include?</label>
+                            </div>
+                        </div>
+                        <hr>
+                        <div class="row sample-three mt-4">
+                            <div class="col-1 d-flex align-items-center"><strong>3</strong></div>
+                            <div class="col-3 d-flex align-items-center input-wrap position-relative">
+                                <span class="micro-label">Hct</span>
+                                @* hct *@
+                                <input type="text"
+                                       id="sample3Hct"
+                                       class="form-control restyled sample"
+                                       inputmode="numeric"
+                                       v-model="postInjection3.phct"
+                                       :disabled="!readyToCountSample3" />
+                            </div>
+                            <div class="col-4 d-flex align-items-center input-wrap position-relative">
+                                <span class="micro-label">Time</span>
+                                @* time *@
+                                <div id="sample3Timestamp"
+                                     class="form-control restyled sample"></div>
+                                <input type="hidden"
+                                       id="sample3TimestampValue" />
+                            </div>
+                            <div class="col-4 d-flex align-items-center input-wrap position-relative">
+                                <span class="micro-label">Count</span>
+                                @* Count *@
+                                <input type="text"
+                                       class="form-control restyled sample"
+                                       inputmode="numeric"
+                                       v-model="postInjection3.counts"
+                                       :disabled="!readyToCountSample3" />
+                            </div>
+                        </div>
+                        <div class="row count-btn d-flex align-items-center">
+                            <div class="col-8 px-0">
+                                <input type="button"
+                                       id="btnCountSample3"
+                                       class="btn btn-lg greenButton my-2"
+                                       :value="this.countButtonText(this.postInjection3.spectrum)"
+                                       v-on:click="countSample('postInjection3')"
+                                       :disabled="!readyToCountSample3" />
+                            </div>
+                            <div class="col-4 px-0 d-flex justify-content-end">
+                                <input type="checkbox"
+                                       id="chkIncludeSample3"
+                                       class="mr-2"
+                                       v-model="postInjection3.included">
+                                <label for="includeSample3"
+                                       class="mb-0 guided-label">Include?</label>
+                            </div>
+
+                        </div>
+                        <hr>
+                        <div class="row sample-four mt-4">
+                            <div class="col-1 d-flex align-items-center"><strong>4</strong></div>
+                            <div class="col-3 d-flex align-items-center input-wrap position-relative">
+                                <span class="micro-label">Hct</span>
+                                @* hct *@
+                                <input type="text"
+                                       id="sample4Hct"
+                                       class="form-control restyled sample"
+                                       inputmode="numeric"
+                                       v-model="postInjection4.phct"
+                                       :disabled="!readyToCountSample4" />
+                            </div>
+                            <div class="col-4 d-flex align-items-center input-wrap position-relative">
+                                <span class="micro-label">Time</span>
+                                @* time *@
+                                <div id="sample4Timestamp"
+                                     class="form-control restyled sample"></div>
+                                <input type="hidden"
+                                       id="sample4TimestampValue" />
+                            </div>
+                            <div class="col-4 d-flex align-items-center input-wrap position-relative">
+                                <span class="micro-label">Count</span>
+                                @* Count *@
+                                <input type="text"
+                                       class="form-control restyled sample"
+                                       inputmode="numeric"
+                                       v-model="postInjection4.counts"
+                                       :disabled="!readyToCountSample4" />
+                            </div>
+                        </div>
+                        <div class="row count-btn d-flex align-items-center">
+                            <div class="col-8 px-0">
+                                <input type="button"
+                                       id="btnCountSample4"
+                                       class="btn btn-lg greenButton my-2"
+                                       :value="this.countButtonText(this.postInjection4.spectrum)"
+                                       v-on:click="countSample('postInjection4')"
+                                       :disabled="!readyToCountSample4" />
+                            </div>
+                            <div class="col-4 px-0 d-flex justify-content-end">
+                                <input type="checkbox"
+                                       id="chkIncludeSample4"
+                                       class="mr-2"
+                                       v-model="postInjection4.included">
+                                <label for="includeSample4"
+                                       class="mb-0 guided-label">Include?</label>
+                            </div>
+                        </div>
+                        <hr>
+                        <div class="row sample-five mt-4">
+                            <div class="col-1 d-flex align-items-center"><strong>5</strong></div>
+                            <div class="col-3 d-flex align-items-center input-wrap position-relative">
+                                <span class="micro-label">Hct</span>
+                                @* hct *@
+                                <input type="text"
+                                       id="sample5Hct"
+                                       class="form-control restyled sample"
+                                       inputmode="numeric"
+                                       v-model="postInjection5.phct"
+                                       :disabled="!readyToCountSample5" />
+                            </div>
+                            <div class="col-4 d-flex align-items-center input-wrap position-relative">
+                                <span class="micro-label">Time</span>
+                                @* time *@
+                                <div id="sample5Timestamp"
+                                     class="form-control restyled sample"></div>
+                                <input type="hidden"
+                                       id="sample5TimestampValue" />
+                            </div>
+                            <div class="col-4 d-flex align-items-center input-wrap position-relative">
+                                <span class="micro-label">Count</span>
+                                @* Count *@
+                                <input type="text"
+                                       class="form-control restyled sample"
+                                       inputmode="numeric"
+                                       v-model="postInjection5.counts"
+                                       :disabled="!readyToCountSample5" />
+                            </div>
+                        </div>
+                        <div class="row count-btn d-flex align-items-center">
+                            <div class="col-8 px-0">
+                                <input type="button"
+                                       id="btnCountSample5"
+                                       class="btn btn-lg greenButton my-2"
+                                       :value="this.countButtonText(this.postInjection5.spectrum)"
+                                       v-on:click="countSample('postInjection5')"
+                                       :disabled="!readyToCountSample5" />
+                            </div>
+                            <div class="col-4 px-0 d-flex justify-content-end">
+                                <input type="checkbox"
+                                       id="chkIncludeSample5"
+                                       class="mr-2"
+                                       v-model="postInjection5.included">
+                                <label for="includeSample5"
+                                       class="mb-0 guided-label">Include?</label>
+                            </div>
+                        </div>
+                    </div>
+                    @* END NON-TABLE SOLUTION *@
+                </div>
+            </div>
+            @* PATIENT INFO *@
+            <div class="single-item">
+                <div class="rounded-card standard-wrap bg-white">
+                    <h4 id="top"
+                        class="mb-3 lab-heading">
+                        Patient Information
+                    </h4>
+                    <div class="mb-3">
+                        <label class="input-label"
+                               for="patientID">Patient ID</label>
+                        <input class="form-control restyled"
+                               type="text"
+                               inputmode="text"
+                               id="patientID"
+                               v-model="patientID"
+                               name="patientID" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="input-label"
+                               for="orderingPhysician">Ordering Physician</label>
+                        <input class="form-control restyled"
+                               type="text"
+                               inputmode="text"
+                               id="orderingPhysician"
+                               v-model="orderingPhysician"
+                               name="orderingPhysician" />
+                    </div>
+                    <div class="row">
+                        <div class="mb-3 col-6">
+                            <label class="input-label"
+                                   for="age">Age</label>
+                            <input class="form-control restyled"
+                                   type="text"
+                                   inputmode="numeric"
+                                   id="age"
+                                   v-model="age"
+                                   name="age" />
+                        </div>
+                        <div class="mb-3 col-6">
+                            <label class="input-label"
+                                   for="sex">Sex</label>
+                            <!-- <div class="row justify-content-around mt-2">
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input sex-select"
+                                           type="radio"
+                                           name="inlineRadioOptions"
+                                           id="inlineRadio1"
+                                           value="option1">
+                                    <label class="form-check-label"
+                                           for="inlineRadio1">M</label>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input sex-select"
+                                           type="radio"
+                                           name="inlineRadioOptions"
+                                           id="inlineRadio2"
+                                           value="option2">
+                                    <label class="form-check-label"
+                                           for="inlineRadio2">F</label>
+                                </div>
+                            </div> -->
+                            <select id="sex"
+                                    aria-label="Default select example"
+                                    class="form-control restyled"
+                                    v-model="sex">
+                                <option class="sex-opition"
+                                        value=""
+                                        selected>Select Sex</option>
+                                <option class="sex-opition"
+                                        value="male">Male</option>
+                                <option class="sex-opition"
+                                        value="female">Female</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="mb-3 col-6">
+                            <label class="input-label"
+                                   for="weight"
+                                   v-on:click="toggleUnitsOfMeasure">{{weightLabel}}:</label>
+                            <input class="form-control restyled"
+                                   type="text"
+                                   inputmode="numeric"
+                                   id="weight"
+                                   v-model="weight"
+                                   name="weight" />
+                        </div>
+                        <div class="mb-3 col-6">
+                            <label class="input-label"
+                                   for="height"
+                                   v-on:click="toggleUnitsOfMeasure">{{heightLabel}}:</label>
+                            <input class="form-control restyled"
+                                   type="text"
+                                   inputmode="numeric"
+                                   id="height"
+                                   v-model="height"
+                                   name="height" />
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <input type="button"
+                               id="btnOpenAmputeeModal"
+                               class="btn btn-lg greenButton my-2"
+                               value="Amputations"
+                               v-on:click="openAmputeeModal" />
+                    </div>
+                    <div class="mb-3">
+                        <input type="button"
+                               id="btnPatientInfoFilledOut"
+                               class="btn btn-lg greenButton my-2"
+                               value="Next"
+                               v-on:click="patientInfoComplete" />
+                    </div>
+                </div>
+            </div>
+            @* RESULTS *@
+            <div class="single-item">
+                <div class="rounded-card standard-wrap bg-white">
+                    <h4 class="lab-heading">
+                        Results
+                    </h4>
+                    <div class="d-flex justify-content-around">
+                        <p class="data-select"
+                           :class="{ active: rawActive }"
+                           v-on:click="showRawResults">Raw Data</p>
+                        <p class="data-select"
+                           :class="{ active: devActive }"
+                           v-on:click="showDevResults">Dev from Ideal</p>
+                    </div>
+                    <section v-if="rawResults">
+                        <div class="d-flex justify-content-between align-items-center result-row">
+                            <p class="input-label">UBV</p>
+                            <p class="input-label result">{{ ubv }}</p>
+                        </div>
+                        <hr>
+                        <div class="d-flex justify-content-between align-items-center result-row">
+                            <p class="input-label">RBCV</p>
+                            <p class="input-label result">{{ rbcv }}</p>
+                        </div>
+                        <hr>
+                        <div class="d-flex justify-content-between align-items-center result-row">
+                            <p class="input-label">PV</p>
+                            <p class="input-label result">{{ pv }}</p>
+                        </div>
+                        <hr>
+                        <div class="d-flex justify-content-between align-items-center result-row">
+                            <p class="input-label">TBV</p>
+                            <p class="input-label result">{{ tbv }}</p>
+                        </div>
+                    </section>
+                    <section v-if="devResults">
+                        <div class="d-flex justify-content-between align-items-center result-row">
+                            <p class="input-label">UBV Dev.</p>
+                            <p class="input-label result">{{ ubv }}%</p>
+                        </div>
+                        <hr>
+                        <div class="d-flex justify-content-between align-items-center result-row">
+                            <p class="input-label">RBCV Dev.</p>
+                            <p class="input-label result">{{ rbcv }}%</p>
+                        </div>
+                        <hr>
+                        <div class="d-flex justify-content-between align-items-center result-row">
+                            <p class="input-label">PV Dev.</p>
+                            <p class="input-label result">{{ pv }}%</p>
+                        </div>
+                        <hr>
+                        <div class="d-flex justify-content-between align-items-center result-row">
+                            <p class="input-label">TBV Dev.</p>
+                            <p class="input-label result">{{ tbv }}%</p>
+                        </div>
+                    </section>
+                    <input type="button"
+                           class="btn btn-lg redOutline my-2"
+                           value="Reset"
+                           v-on:click="resetValues" />
+                    <input type="button"
+                           class="btn btn-lg blueButton my-2"
+                           value="Calculate"
+                           v-on:click="calculateBVA" />
+                    <input type="button"
+                           class="btn btn-lg greenButton my-2"
+                           value="Save"
+                           v-on:click="saveTestResults" />
+                </div>
+            </div>
+        </div>
+    </div>
+    @* END SLICK *@
+    <div class="modal"
+         id="body-map"
+         tabindex="-1"
+         aria-labelledby="amputeeModal"
+         aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    Amputation Selection
+                    <button type="button"
+                            class="close"
+                            v-on:click="closeBodyModal"
+                            aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body d-flex flex-column position-relative">
+                    <div class="left-right d-flex justify-content-between align-items-center">
+                        <div class="right">R</div>
+                        <p class="my-0">ANTERIOR</p>
+                        <div class="left">L</div>
+                    </div>
+                    <div class="body-wrap">
+                        <div class="row">
+                            <div class="head ext"></div>
+                        </div>
+                        <div class="row">
+                            <div class="right-arm">
+                                <div id="right-upper-arm"
+                                     class="right-upper-arm ext amp"
+                                     v-on:click="ampToggle('right-upper-arm')"></div>
+                            </div>
+                            <div class="torso ext"></div>
+                            <div class="left-arm">
+                                <div id="left-upper-arm"
+                                     class="left-upper-arm ext amp"
+                                     v-on:click="ampToggle('left-upper-arm')">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="left-leg">
+                                <div id="left-upper-leg"
+                                     class="left-upper-leg ext amp"
+                                     v-on:click="ampToggle('left-upper-leg')">
+                                </div>
+                                <div id="left-lower-leg"
+                                     class="left-lower-leg ext amp"
+                                     v-on:click="ampToggle('left-lower-leg')">
+                                </div>
+                            </div>
+                            <div class="right-leg">
+                                <div id="right-upper-leg"
+                                     class="right-upper-leg ext amp"
+                                     v-on:click="ampToggle('right-upper-leg')"></div>
+                                <div id="right-lower-leg"
+                                     class="right-lower-leg ext amp"
+                                     v-on:click="ampToggle('right-lower-leg')"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <p class="text-center">Based on your selection, we suggest using a correction factor of
+                        {{calculatedAmputeeCorrectionPercentage}}%.</p>
+                    <div class="modal-footer">
+                        <input type="button"
+                               class="btn btn-lg greenButton"
+                               value="Yes"
+                               v-on:click="setAmputeeCorrectionPercentage" />
+                        <input type="button"
+                               class="btn btn-lg redButton"
+                               value="No"
+                               v-on:click="clearAmputeeCorrectionPercentage" />
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+@* Vue logic lives here *@
+
+<link href="~/lib/datetimepicker/css/datetimepicker.css"
+      rel="stylesheet">
+<script src="~/lib/datetimepicker/js/datetimepicker.js"></script>
+
+<script src="~/js/bvaCalc.js"></script>
+
+@*Guided Tour Libs*@
+<script src="~/lib/kinetic/kinetic.js"></script>
+<script src="~/lib/jquery-scrollto/jquery.scrollTo.min.js"></script>
+
+<!-- Enjoyhint library -->
+<link href="~/lib/enjoyhint/enjoyhint.css"
+      rel="stylesheet">
+<script src="~/lib/enjoyhint/enjoyhint.js"></script>
+
+<link rel="stylesheet"
+      href="~/css/body-map.css" />
+
+<script>
+    CreateUserConfigVue(@Html.Raw(JsonConvert.SerializeObject(Model)));
+
+    function CreateUserConfigVue(model) {
+        new Vue({
+            el: '#app',
+            data: {
+                accordionClasses: {
+                    'is-closed': this.isOpen
+                },
+                backgroundCountMins: 1,
+                sampleCountMins: 6,
+                centroid: 364,
+                currentlyCounting: "",
+                detectorInUse: false,
+                fineGain: 0,
+                isOpen: false,
+                i131: 364,
+                iterationMetaData: [],
+                iterationMetaDataString: "",
+                highChannel: 420,
+                lowChannel: 308,
+                tracerDisMins: 12,
+                standard: "i131",
+                unitsOfMeasurement: "imperial",
+                standardStrength: '',
+
+                //Amputee Variables
+                amputee: 0,//this is the numerical representation of which limb(s) are removed
+                amputeeCorrectionPercentage: 0,
+                upperLeftArmAmputated: false,
+                lowerLeftArmAmputated: false,
+                upperRightArmAmputated: false,
+                lowerRightArmAmputated: false,
+                upperLeftLegAmputated: false,
+                lowerLeftLegAmputated: false,
+                upperRightLegAmputated: false,
+                lowerRightLegAmputated: false,
+
+                albuminTransudationRate: 0,
+
+                // Background variables
+                backgroundSpectrum: [],
+                backgroundCount: '',
+                backgroundSpectrumCountsArray: [],
+
+                // Standard variables
+                standardSpectrum: [],
+                standardCount: '',
+                countWatcher: [0, 0, 0, 0, 0],//this is used exclusively to prevent 5 specific watch functions from firing if the page was loaded
+                loadedFromSavedTest: false,
+
+                // Pre-Injection variables
+                baselineSpectrum: [],
+                baselineCount: '',
+
+                // Post-Injection variables
+                postInjection1: {
+                    counts: '',
+                    drawnTimestamp: undefined,
+                    countedTimestamp: undefined,
+                    phct: '',
+                    nhct: 0,
+                    spectrum: [],
+                    included: false
+                },
+                postInjection2: {
+                    counts: '',
+                    drawnTimestamp: undefined,
+                    countedTimestamp: undefined,
+                    phct: '',
+                    nhct: 0,
+                    spectrum: [],
+                    included: false
+                },
+                postInjection3: {
+                    counts: 0,
+                    drawnTimestamp: undefined,
+                    countedTimestamp: undefined,
+                    phct: '',
+                    nhct: 0,
+                    spectrum: [],
+                    included: false
+                },
+                postInjection4: {
+                    counts: '',
+                    drawnTimestamp: undefined,
+                    countedTimestamp: undefined,
+                    phct: '',
+                    nhct: 0,
+                    spectrum: [],
+                    included: false
+                },
+                postInjection5: {
+                    counts: '',
+                    drawnTimestamp: undefined,
+                    countedTimestamp: undefined,
+                    phct: '',
+                    nhct: 0,
+                    spectrum: [],
+                    included: false
+                },
+
+                // Results variables
+
+                patientID: '',
+                weight: '',
+                height: '',
+                sex: '',
+                age: '',
+
+                pregnant: false,
+                injectateLotNumber: 'V',
+                doseInjectionTimestamp: undefined,
+                nhctAvg: 0,
+                phctAvg: 0,
+                ibv: 0,
+                tbv: 0,
+                tbvDeviation: 0,
+                rawResults: true,
+                devResults: false,
+                rawActive: true,
+                devActive: false,
+                rbcv: 0,
+                rbcvDeviation: 0,
+                pv: 0,
+                pvDeviation: 0,
+                ubv: 0,
+                wholeBlood: false,
+                irbcv: 0,
+                ipv: 0,
+                orderingPhysician: "",
+
+                tracerDisseminationTimeElapsed: -1,
+                tracerDisseminationTimeRemaining: 9999999,
+                tracerDisseminationElapsedPretty: '',
+                tracerDisseminationRemainingPretty: '',
+            },
+            watch: {
+                doseInjectionTimestamp: function (nv, ov) {
+                    this.startTimerDissemination();
+                },
+                postInjection1Counts: function (nv, ov) {
+                    let fireCount = this.countWatcher[0];
+                    if (this.loadedFromSavedTest && fireCount === 0) {
+                        fireCount++;
+                        this.countWatcher[0] = fireCount;
+                        return;
+                    }
+                    if (nv > 0) {
+                        this.postInjection1.included = true;
+                    }
+
+                },
+                postInjection2Counts: function (nv, ov) {
+                    let fireCount = this.countWatcher[1];
+                    if (this.loadedFromSavedTest && fireCount === 0) {
+                        fireCount++;
+                        this.countWatcher[1] = fireCount;
+                        return;
+                    }
+                    if (nv > 0) {
+                        this.postInjection2.included = true;
+                    }
+                },
+                postInjection3Counts: function (nv, ov) {
+                    let fireCount = this.countWatcher[2];
+                    if (this.loadedFromSavedTest && fireCount === 0) {
+                        fireCount++;
+                        this.countWatcher[2] = fireCount;
+                        return;
+                    }
+                    if (nv > 0) {
+                        this.postInjection3.included = true;
+                    }
+                },
+                postInjection4Counts: function (nv, ov) {
+                    let fireCount = this.countWatcher[3];
+                    if (this.loadedFromSavedTest && fireCount === 0) {
+                        fireCount++;
+                        this.countWatcher[3] = fireCount;
+                        return;
+                    }
+                    if (nv > 0) {
+                        this.postInjection4.included = true;
+                    }
+                },
+                postInjection5Counts: function (nv, ov) {
+                    let fireCount = this.countWatcher[4];
+                    if (this.loadedFromSavedTest && fireCount === 0) {
+                        fireCount++;
+                        this.countWatcher[4] = fireCount;
+                        return;
+                    }
+                    if (nv > 0) {
+                        this.postInjection5.included = true;
+                    }
+                },
+            },
+            mounted: async function () {
+                try {
+                    var context = this;
+                    await this.openReader();
+
+                    //check for any query string params
+                    let testResultToLoad = getQueryStringParams("load");
+                    if (!_.isEmpty(testResultToLoad)) {
+                        await this.loadTestData(Number(testResultToLoad), false);
+                    }
+
+                    this.initDateTimePickers();
+
+                    $('.slider').slick({
+                        slidesToShow: 1,
+                        slidesToScroll: 1,
+                        arrows: false,
+                        infinite: false
+                    });
+
+                    $('i[data-slide]').click(function (e) {
+                        e.preventDefault();
+                        var slideno = $(this).data('slide');
+                        $('.slider').slick('slickGoTo', slideno);
+                        $('i[data-slide]').removeClass('active');
+                        this.classList.add('active');
+                        //context.triggerResizeEvent();
+                    });
+
+                    $('.slider').on('afterChange', function (event, slick, currentSlide, nextSlide) {
+                        switch (currentSlide) {
+                            default:
+                                break;
+                        }
+                        context.triggerResizeEvent();
+                    });
+
+                } catch (err) {
+                    console.error(err);
+                    onFail(err, 'Failed to start background read');
+                }
+            },
+
+            computed: {
+                patientInfoFilledOut: function () {
+                    var a = !_.isEmpty(this.patientID) && !_.isEmpty(this.orderingPhysician);
+                    var b = !_.isEmpty(this.age) && !_.isEmpty(this.sex);
+                    var c = !_.isEmpty(this.weight) && !_.isEmpty(this.height);
+
+
+                    return a && b && c;
+                },
+                calculatedAmputeeCorrectionPercentage: function () {
+                    /*
+                        Straight from Dr. Feldschuh's papers
+                        Affects whole blood volume & RBCV
+                        
+                        Double above Knee: 7%
+                        Single above knee: 4%
+                        
+                        Double Below Knee: 5%
+                        Single below knee: 3%
+
+                        Single arm: 2%
+                        Double arm: 3%
+                    */
+
+                    let percentage = 0;
+                    let singleBelowKnee = (this.lowerLeftLegAmputated && !this.lowerRightLegAmputated) || (!this.lowerLeftLegAmputated && this.lowerRightLegAmputated);
+
+                    let singleAboveKnee = (this.upperLeftLegAmputated && !this.upperRightLegAmputated) || (!this.upperLeftLegAmputated && this.upperRightLegAmputated);
+
+                    let doubleBelowKnee = this.lowerLeftLegAmputated && this.lowerRightLegAmputated;
+                    let doubleAboveKnee = this.upperLeftLegAmputated && this.upperRightLegAmputated;
+
+                    let legMissing = "none";
+                    if (singleAboveKnee) {
+                        if (this.upperLeftLegAmputated) {
+                            legMissing = "left";
+                        }
+                        if (this.upperRightLegAmputated) {
+                            legMissing = "right";
+                        }
+                    }
+                    if (doubleAboveKnee) {
+                        legMissing = "both";
+                    }
+
+                    //Since we have the amputee modal making the whole arm go when teh user clicks any part, we're using the upper arm for the calc
+                    let singleArm = (this.upperLeftArmAmputated && !this.upperRightArmAmputated) || (!this.upperLeftArmAmputated && this.upperRightArmAmputated);
+                    let doubleArm = this.upperLeftArmAmputated && this.upperRightArmAmputated;
+
+                    if (doubleAboveKnee) {//both legs gone
+                        percentage = 7;
+                    } else {
+                        if (singleAboveKnee) { //one leg entirely gone
+                            percentage = 4;
+                            if (legMissing === "left") {
+                                if (this.lowerRightLegAmputated) {
+                                    percentage += 3;
+                                }
+                            }
+                            if (legMissing === "right") {
+                                if (this.lowerLeftLegAmputated) {
+                                    percentage += 3;
+                                }
+                            }
+                        } else {//no entire leg missing. Check for single or double below knee
+                            if (doubleBelowKnee) {
+                                percentage = 5;
+                            } else if (singleBelowKnee) {
+                                percentage = 3;
+                            }
+                        }
+                    }
+
+                    //leg percentage in place. Time for arms
+                    if (doubleArm) {
+                        percentage += 3;
+                    } else if (singleArm) {
+                        percentage += 2;
+                    }
+
+                    return percentage;
+                },
+                readyToCountBackground: function () {
+                    return !this.detectorInUse;
+                },
+                readyToCountStandard: function () {
+                    if (this.detectorInUse) {
+                        return false;
+                    }
+
+                    return this.backgroundCount > 0;
+                },
+                readyToCountBaseline: function () {
+                    if (this.detectorInUse) {
+                        return false;
+                    }
+                    if (!this.readyToCountStandard) {
+                        return false;
+                    }
+
+                    return this.standardCount > 0;
+                },
+                readyToCountSample1: function () {
+                    if (this.detectorInUse) {
+                        return false;
+                    }
+                    if (!this.readyToCountBaseline || !this.readyToCountStandard) {
+                        return false;
+                    }
+                       
+                    return this.baselineCount > 0;
+                },
+                readyToCountSample2: function () {
+                    if (this.detectorInUse) {
+                        return false;
+                    }
+                    if (!this.readyToCountBaseline || !this.readyToCountStandard || !this.readyToCountSample1) {
+                        return false;
+                    }
+
+                    return this.postInjection1.counts > 0;
+                },
+                readyToCountSample3: function () {
+                    if (this.detectorInUse) {
+                        return false;
+                    }
+                    if (!this.readyToCountBaseline || !this.readyToCountStandard || !this.readyToCountSample1 || !this.readyToCountSample2) {
+                        return false;
+                    }
+                    
+                    return this.postInjection2.counts > 0;
+                },
+                readyToCountSample4: function () {
+                    if (this.detectorInUse) {
+                        return false;
+                    }
+                    if (!this.readyToCountBaseline || !this.readyToCountStandard || !this.readyToCountSample1 || !this.readyToCountSample2 || !this.readyToCountSample3) {
+                        return false;
+                    }
+                    
+                    return this.postInjection3.counts > 0;
+                },
+                readyToCountSample5: function () {
+                    if (this.detectorInUse) {
+                        return false;
+                    }
+                    if (!this.readyToCountBaseline || !this.readyToCountStandard || !this.readyToCountSample1 || !this.readyToCountSample2 || !this.readyToCountSample3 || !this.readyToCountSample4) {
+                        return false;
+                    }
+                    
+                    return this.postInjection4.counts > 0;
+                },
+                postInjection1Counts: function () {
+                    return this.postInjection1.counts;
+                },
+                postInjection2Counts: function () {
+                    return this.postInjection2.counts;
+                },
+                postInjection3Counts: function () {
+                    return this.postInjection3.counts;
+                },
+                postInjection4Counts: function () {
+                    return this.postInjection4.counts;
+                },
+                postInjection5Counts: function () {
+                    return this.postInjection5.counts;
+                },
+                postInjection1Spectrum: function () {
+                    return this.postInjection1.spectrum;
+                },
+                postInjection1DrawnTimestamp: function () {
+                    return this.postInjection1.drawnTimestamp;
+                },
+                postInjection2Spectrum: function () {
+                    return this.postInjection2.spectrum;
+                },
+                postInjection2DrawnTimestamp: function () {
+                    return this.postInjection2.drawnTimestamp;
+                },
+                postInjection3Spectrum: function () {
+                    return this.postInjection3.spectrum;
+                },
+                postInjection3DrawnTimestamp: function () {
+                    return this.postInjection3.drawnTimestamp;
+                },
+                postInjection4Spectrum: function () {
+                    return this.postInjection4.spectrum;
+                },
+                postInjection4DrawnTimestamp: function () {
+                    return this.postInjection4.drawnTimestamp;
+                },
+                postInjection5Spectrum: function () {
+                    return this.postInjection5.spectrum;
+                },
+                postInjection5DrawnTimestamp: function () {
+                    return this.postInjection5.drawnTimestamp;
+                },
+                sampleCountTime: function () {
+                    if (this.currentlyCounting === "backgroundSpectrum") {
+                        return this.backgroundCountMins;
+                    } else {
+                        return this.sampleCountMins;
+                    }
+                },
+                dectorStatusString() {
+                    if (this.detectorInUse) {
+                        return `Counting for ${this.sampleCountTime}m`;
+                    } else {
+                        return "Idle";
+                    }
+                },
+
+                //these next 5 are textfields
+                postInjection1Time() {
+                    if (this.postInjection1.counts > 0) {
+                        return this.postInjection1.drawnTimestamp;
+                    }
+                    return 0;
+                },
+                postInjection2Time() {
+                    if (this.postInjection2.counts > 0) {
+                        return this.postInjection2.drawnTimestamp;
+                    }
+                    return 0;
+                },
+                postInjection3Time() {
+                    if (this.postInjection3.counts > 0) {
+                        return this.postInjection3.drawnTimestamp;
+                    }
+                    return 0;
+                },
+                postInjection4Time() {
+                    if (this.postInjection4.counts > 0) {
+                        return this.postInjection4.drawnTimestamp;
+                    }
+                    return 0;
+                },
+                postInjection5Time() {
+                    if (this.postInjection5.counts > 0) {
+                        return this.postInjection5.drawnTimestamp;
+                    }
+                    return 0;
+                },
+                weightLabel: function () {
+                    if (this.unitsOfMeasurement === 'metric') {
+                        return "Weight (kg)";
+                    } else {
+                        return "Weight (lbs)";
+                    }
+                },
+                heightLabel: function () {
+                    if (this.unitsOfMeasurement === 'metric') {
+                        return "Height (cm)";
+                    } else {
+                        return "Height (in)";
+                    }
+                },
+                metricWeight: function () {
+                    if (this.unitsOfMeasurement === 'metric') {
+                        return this.weight;
+                    } else {
+                        return Math.round(this.weight * 0.45359237);
+                    }
+                },
+                metricHeight: function () {
+                    if (this.unitsOfMeasurement === 'metric') {
+                        return this.height;
+                    } else {
+                        return Math.round(this.height * 2.54);
+                    }
+                }
+            },
+            methods: {
+                countButtonText(arr) {
+                    if (arr.length > 0) {
+                        return "Re-Count";
+                    } else {
+                        return "Count";
+                    }
+                },
+                showDevResults: function () {
+                    this.rawResults = false
+                    this.rawActive = false
+                    this.devResults = true
+                    this.devActive = true
+                },
+                showRawResults: function () {
+                    this.devResults = false
+                    this.devActive = false
+                    this.rawResults = true
+                    this.rawActive = true
+                },
+                getTimeUntilTracerDisseminationComplete: function () {
+                    var injectionTS = new Date(this.doseInjectionTimestamp).getTime();
+                    var now = new Date().getTime();//now
+
+                    var tsDisseminationDone = injectionTS + this.tracerDisMins * 60 * 1000;
+                    if (now > tsDisseminationDone) {
+                        return 0;//we're done waiting
+                    } else {
+                        var delta = Math.round((tsDisseminationDone - now) / 1000); //return seconds left
+                        return delta;
+                    }
+                },
+                getTracerDisseminationTimeElapsed: function () {
+                    var injectionTS = new Date(this.doseInjectionTimestamp).getTime();
+                    var now = new Date().getTime();//now
+                    return Math.round(Math.abs(injectionTS - now) / 1000);
+                },
+                setDisseminationTimePretty: function (v) {
+                    //start with elapsed
+                    this.tracerDisseminationTimeElapsed = this.getTracerDisseminationTimeElapsed();
+                    var mins = Math.floor(this.tracerDisseminationTimeElapsed / 60);
+                    var secs = Math.round((this.tracerDisseminationTimeElapsed - (mins * 60)) % 60);
+                    if (mins < 10) {
+                        mins = "0" + mins;
+                    }
+                    if (secs < 10) {
+                        secs = "0" + secs
+                    }
+                    var ttwString = mins + ":" + secs;//time to wait
+                    this.tracerDisseminationElapsedPretty = ttwString;
+
+                    //now do remaining
+                    this.tracerDisseminationTimeRemaining = this.getTimeUntilTracerDisseminationComplete();
+                    mins = Math.floor(this.tracerDisseminationTimeRemaining / 60);
+                    secs = Math.round((this.tracerDisseminationTimeRemaining - (mins * 60)) % 60);
+                    if (mins < 10) {
+                        mins = "0" + mins;
+                    }
+                    if (secs < 10) {
+                        secs = "0" + secs
+                    }
+                    ttwString = mins + ":" + secs;//time to wait
+                    this.tracerDisseminationRemainingPretty = ttwString;
+                },
+                triggerResizeEvent: function () {
+                    setTimeout(function () {
+                        $(window).trigger('resize');//this will trigger any listeners anywhere in the program to do special handling.
+                    }, 300);
+                },
+                patientInfoComplete: function () {
+                    if (!this.patientInfoFilledOut) {
+                        onFail('Please make sure all patient info is filled out and try again', 'Missing data');
+                        return;
+                    }
+                },
+                setAmputeeCorrectionPercentage: function () {
+                    this.amputeeCorrectionPercentage = this.calculatedAmputeeCorrectionPercentage;
+                    this.closeBodyModal();
+                },
+                clearAmputeeCorrectionPercentage: function () {
+                    this.amputeeCorrectionPercentage = 0;
+                    this.closeBodyModal();
+                },
+                setAmputeeMissingLimbs: function () {
+                    let t = Number(this.amputee).toString(2);
+                    t = t.split('').reverse().join('');//reverse the string
+                    for (var i = 0; i < t.length; i++) {//start counting at 1
+                        let v = Number(t[i]);
+                        if (v !== 1) {
+                            continue;
+                        }
+                        switch (i) {
+                            case 0:
+                                //upper left arm
+                                this.upperLeftArmAmputated = true;
+                                $('.left-upper-arm').addClass('gone');
+                                console.log('upper left arm gone', v)
+                                break;
+                            case 1:
+                                //lower left arm
+                                this.lowerLeftArmAmputated = true;
+                                $('.left-lower-arm').addClass('gone');
+                                console.log('lower left arm gone', v)
+                                break;
+                            case 2:
+                                //upper right arm
+                                this.upperRightArmAmputated = true;
+                                $('.right-upper-arm').addClass('gone');
+                                console.log('upper right arm gone', v)
+                                break;
+                            case 3:
+                                //lower right arm
+                                this.lowerRightArmAmputated = true;
+                                $('.right-lower-arm').addClass('gone');
+                                console.log('lower right arm gone', v)
+                                break;
+                            case 4:
+                                //upper left Leg
+                                this.upperLeftLegAmputated = true;
+                                $('.left-upper-leg').addClass('gone');
+                                console.log('upper left leg gone', v)
+                                break;
+                            case 5:
+                                //lower left Leg
+                                this.lowerLeftLegAmputated = true;
+                                $('.left-lower-leg').addClass('gone');
+                                console.log('lower left leg gone', v)
+                                break;
+                            case 6:
+                                //upper right Leg
+                                this.upperRightLegAmputated = true;
+                                $('.right-upper-leg').addClass('gone');
+                                console.log('upper right leg gone', v)
+                                break;
+                            case 7:
+                                //lower right Leg
+                                this.lowerRightLegAmputated = true;
+                                $('.right-lower-leg').addClass('gone');
+                                console.log('lower right leg gone', v)
+                                break;
+
+                        }
+                    }
+                },
+                calculateAmputeeValue: function () {
+                    console.log('calcing amputee value')
+                    /*
+                        Because of the possibilies, going to roll with a binary integer set
+                        There are 8 limbs that can be removed in various combinations so we'll roll with this:
+
+                        0 = no amputated limbs
+                        1 = Upper Left Arm
+                        2 = Lower Left Arm
+                        4 = Upper Right Arm
+                        8 = Lower Right Arm
+                        16 = Upper Left Leg
+                        32 = Lower Left Leg
+                        64 = Upper Right Leg
+                        128 = Lower Right Leg
+
+                        e.g.
+                        10101010 =  170 decimal
+                        Lower Right Leg, lower left leg, lower right arm, lower left arm are gone.
+                    */
+                    let t = 0;
+                    if (this.upperLeftArmAmputated) {
+                        t += 1;
+                    }
+                    if (this.lowerLeftArmAmputated) {
+                        t += 2;
+                    }
+                    if (this.upperRightArmAmputated) {
+                        t += 4;
+                    }
+                    if (this.lowerRightArmAmputated) {
+                        t += 8;
+                    }
+                    if (this.upperLeftLegAmputated) {
+                        t += 16;
+                    }
+                    if (this.lowerLeftLegAmputated) {
+                        t += 32;
+                    }
+                    if (this.upperRightLegAmputated) {
+                        t += 64;
+                    }
+                    if (this.lowerRightLegAmputated) {
+                        t += 128;
+                    }
+                    console.log(t);
+                    this.amputee = t;
+                },
+                ampToggle: function (limb) {
+                    let control = $('#' + limb);
+                    control.toggleClass('gone');
+
+                    let limbRemoved = control.hasClass('gone');
+                    switch (limb) {
+                        case "right-upper-arm":
+                        case "right-lower-arm":
+                            console.log('RIGHT ARM')
+                            if (limbRemoved === true) {
+                                this.upperRightArmAmputated = true;
+                                this.lowerRightArmAmputated = true;
+                                $('.right-lower-arm').addClass('gone');
+                                $('.right-upper-arm').addClass('gone');
+                            } else {
+                                this.upperRightArmAmputated = false;
+                                this.lowerRightArmAmputated = false;
+                                $('.right-lower-arm').removeClass('gone');
+                                $('.right-upper-arm').removeClass('gone');
+                            }
+                            break;
+                        case "left-upper-arm":
+                        case "left-lower-arm":
+                            console.log("LEFT ARM")
+                            if (limbRemoved === true) {
+                                this.upperLeftArmAmputated = true;
+                                this.lowerLeftArmAmputated = true;
+                                $('.left-lower-arm').addClass('gone');
+                                $('.left-upper-arm').addClass('gone');
+                            } else {
+                                this.upperLeftArmAmputated = false;
+                                this.lowerRightArmAmputated = false;
+                                $('.left-lower-arm').removeClass('gone');
+                                $('.left-upper-arm').removeClass('gone');
+                            }
+                            break;
+                        case "right-upper-leg":
+                            if (limbRemoved === true) {
+                                this.upperRightLegAmputated = true;
+                                this.lowerRightLegAmputated = true;
+                                $('.right-lower-leg').addClass('gone');
+                            } else {
+                                this.upperRightLegAmputated = false;
+                            }
+                            break;
+                        case "right-lower-leg":
+                            if (limbRemoved === true) {
+                                this.lowerRightLegAmputated = true;
+                            } else {
+                                this.lowerRightLegAmputated = false;
+                            }
+                            break;
+                        case "left-upper-leg":
+                            if (limbRemoved === true) {
+                                this.upperLeftLegAmputated = true;
+                                this.lowerLeftLegAmputated = true;
+                                $('.left-lower-leg').addClass('gone');
+                            } else {
+                                this.upperLeftLegAmputated = false;
+                            }
+                            break;
+                        case "left-lower-leg":
+                            if (limbRemoved === true) {
+                                this.lowerLeftLegAmputated = true;
+                            } else {
+                                this.lowerLeftLegAmputated = false;
+                            }
+                            break;
+                        default:
+                            break;
+                    }
+
+
+                    //now to check for situations where the upper limb is gone but the lower is somehow present.
+                    if (this.upperLeftArmAmputated && !this.lowerLeftArmAmputated) {
+                        this.lowerLeftArmAmputated = true;
+                        $('.left-lower-arm').addClass('gone');
+                    }
+                    if (this.upperRightArmAmputated && !this.lowerRightArmAmputated) {
+                        this.lowerRightArmAmputated = true;
+                        $('.right-lower-arm').addClass('gone');
+                    }
+                    if (this.upperLeftLegAmputated && !this.lowerLeftLegAmputated) {
+                        this.lowerLeftLegAmputated = true;
+                        $('.left-lower-leg').addClass('gone');
+                    }
+                    if (this.upperRightLegAmputated && !this.lowerRightLegAmputated) {
+                        this.lowerRightLegAmputated = true;
+                        $('.right-lower-leg').addClass('gone');
+                    }
+
+                    this.calculateAmputeeValue();
+                },
+                openAmputeeModal: function () {
+                    $('#body-map').modal({
+                        backdrop: 'static',
+                        keyboard: false
+                    });
+                },
+                closeBodyModal: function () {
+                    $('#body-map').modal('hide');
+                },
+                initDateTimePickers: function () {
+                    $('#doseInjectionTimestamp').dateTimePicker({
+                        displayFormat: "YYYY-MM-DD HH:mm:ss",
+                        callback: this.dateTimePickerCallback,
+                        injectionNumber: 0,
+                        selectedTimestamp: this.doseInjectionTimestamp
+                    });
+                    $('#sample1Timestamp').dateTimePicker({
+                        displayFormat: "mm:ss",
+                        callback: this.dateTimePickerCallback,
+                        injectionNumber: 1,
+                        selectedTimestamp: this.postInjection1.drawnTimestamp
+                    });
+                    $('#sample2Timestamp').dateTimePicker({
+                        displayFormat: "mm:ss",
+                        callback: this.dateTimePickerCallback,
+                        injectionNumber: 2,
+                        selectedTimestamp: this.postInjection2.drawnTimestamp
+                    });
+                    $('#sample3Timestamp').dateTimePicker({
+                        displayFormat: "mm:ss",
+                        callback: this.dateTimePickerCallback,
+                        injectionNumber: 3,
+                        selectedTimestamp: this.postInjection3.drawnTimestamp
+                    });
+                    $('#sample4Timestamp').dateTimePicker({
+                        displayFormat: "mm:ss",
+                        callback: this.dateTimePickerCallback,
+                        injectionNumber: 4,
+                        selectedTimestamp: this.postInjection4.drawnTimestamp
+                    });
+                    $('#sample5Timestamp').dateTimePicker({
+                        displayFormat: "mm:ss",
+                        callback: this.dateTimePickerCallback,
+                        injectionNumber: 5,
+                        selectedTimestamp: this.postInjection5.drawnTimestamp
+                    });
+                },
+                dateTimePickerCallback: function (v, i) {
+                    switch (i) {
+                        case 0:
+                            this.doseInjectionTimestamp = isoUTC(v);
+                            break;
+                        case 1:
+                            this.postInjection1.drawnTimestamp = isoUTC(v);
+                            break;
+                        case 2:
+                            this.postInjection2.drawnTimestamp = isoUTC(v);
+                            break;
+                        case 3:
+                            this.postInjection3.drawnTimestamp = isoUTC(v);
+                            break;
+                        case 4:
+                            this.postInjection4.drawnTimestamp = isoUTC(v);
+                            break;
+                        case 5:
+                            this.postInjection5.drawnTimestamp = isoUTC(v);
+                            break;
+                        default:
+                            break;
+                    }
+                },
+                loadTestData: async function (testID, guided) {
+                    this.loadedFromSavedTest = true;
+                    url = "BVA/LoadTestData"
+                    const payload = {
+                        TestResultID: testID,
+                        Guided: guided
+                    };
+                    try {
+                        var response = await axios.post(url, payload);
+                        var testResults = _.get(response, 'data');
+                        console.log("TESTRESUTLS", testResults)
+                        this.patientID = _.get(testResults, 'patientID');
+                        this.orderingPhysician = _.get(testResults, 'orderingPhysician');
+                        this.age = _.get(testResults, 'age');
+                        this.sex = _.get(testResults, 'sex');
+                        this.amputee = _.get(testResults, 'amputee');
+                        this.setAmputeeMissingLimbs();
+                        this.amputeeCorrectionPercentage = _.get(testResults, 'amputeeCorrectionPercentage');
+                        console.log("TTACP", this.amputeeCorrectionPercentage)
+
+                        this.pregnant = _.get(testResults, 'pregnant');
+
+                        this.weight = _.get(testResults, 'weight');
+                        this.height = _.get(testResults, 'height');
+
+                        //weight and height will be in metric
+                        if (this.unitsOfMeasurement !== 'metric') {
+                            this.weight = Math.round(this.weight / 0.45359237);
+                            this.height = Math.round(this.height / 2.54);
+                        }
+
+                        this.injectateLotNumber = _.get(testResults, 'injectateLotNumber', '');
+                        this.standardStrength = _.get(testResults, 'standardStrength', 0);
+                        this.doseInjectionTimestamp = _.get(testResults, 'injectionTimestamp', isoUTCNow());
+                        this.backgroundCountMins = _.get(testResults, 'backgroundCountMins', 0);
+                        this.sampleCountMins = _.get(testResults, 'sampleCountMins', 0);
+
+                        this.tracerDisMins = _.get(testResults, 'tracerDisMins', 0);
+                        this.backgroundSpectrum = _.get(testResults, 'backgroundSpectrum', []);
+                        this.backgroundCount = _.get(testResults, 'backgroundCount', 0);
+                        this.baselineSpectrum = _.get(testResults, 'baselineSpectrum', []);
+                        this.baselineCount = _.get(testResults, 'baselineCount', 0);
+                        this.standardSpectrum = _.get(testResults, 'standardSpectrum', []);
+                        this.standardCount = _.get(testResults, 'standardCount', 0);
+                        this.postInjection1 = {
+                            counts: _.get(testResults, 'postInjection1Count', 0),
+                            drawnTimestamp: _.get(testResults, 'postInjection1DrawnTimestamp', isoUTCNow()) || isoUTCNow(),
+                            countedTimestamp: _.get(testResults, 'postInjection1CountedTimestamp', isoUTCNow()) || isoUTCNow(),
+                            phct: _.get(testResults, 'postInjection1PHCT', 0),
+                            nhct: _.get(testResults, 'postInjection1NHCT', 0),
+                            spectrum: _.get(testResults, 'postInjection1Spectrum', []),
+                            included: _.get(testResults, 'postInjection1Included', false)
+                        };
+                        this.postInjection2 = {
+                            counts: _.get(testResults, 'postInjection2Count', 0),
+                            drawnTimestamp: _.get(testResults, 'postInjection2DrawnTimestamp', isoUTCNow()) || isoUTCNow(),
+                            countedTimestamp: _.get(testResults, 'postInjection2CountedTimestamp', isoUTCNow()) || isoUTCNow(),
+                            phct: _.get(testResults, 'postInjection2PHCT', 0),
+                            nhct: _.get(testResults, 'postInjection2NHCT', 0),
+                            spectrum: _.get(testResults, 'postInjection2Spectrum', []),
+                            included: _.get(testResults, 'postInjection2Included', false)
+                        };
+                        this.postInjection3 = {
+                            counts: _.get(testResults, 'postInjection3Count', 0),
+                            drawnTimestamp: _.get(testResults, 'postInjection3DrawnTimestamp', isoUTCNow()) || isoUTCNow(),
+                            countedTimestamp: _.get(testResults, 'postInjection3CountedTimestamp', isoUTCNow()) || isoUTCNow(),
+                            phct: _.get(testResults, 'postInjection3PHCT', 0),
+                            nhct: _.get(testResults, 'postInjection3NHCT', 0),
+                            spectrum: _.get(testResults, 'postInjection3Spectrum', []),
+                            included: _.get(testResults, 'postInjection3Included', false)
+                        };
+                        this.postInjection4 = {
+                            counts: _.get(testResults, 'postInjection4Count', 0),
+                            drawnTimestamp: _.get(testResults, 'postInjection4DrawnTimestamp', isoUTCNow()) || isoUTCNow(),
+                            countedTimestamp: _.get(testResults, 'postInjection4CountedTimestamp', isoUTCNow()) || isoUTCNow(),
+                            phct: _.get(testResults, 'postInjection4PHCT', 0),
+                            nhct: _.get(testResults, 'postInjection4NHCT', 0),
+                            spectrum: _.get(testResults, 'postInjection4Spectrum', []),
+                            included: _.get(testResults, 'postInjection4Included', false)
+                        };
+                        this.postInjection5 = {
+                            counts: _.get(testResults, 'postInjection5Count', 0),
+                            drawnTimestamp: _.get(testResults, 'postInjection5DrawnTimestamp', isoUTCNow()) || isoUTCNow(),
+                            countedTimestamp: _.get(testResults, 'postInjection5CountedTimestamp', isoUTCNow()) || isoUTCNow(),
+                            phct: _.get(testResults, 'postInjection5PHCT', 0),
+                            nhct: _.get(testResults, 'postInjection5NHCT', 0),
+                            spectrum: _.get(testResults, 'postInjection5Spectrum', []),
+                            included: _.get(testResults, 'postInjection5Included', false)
+                        };
+                        if (!guided) {
+                            this.nhctAvg = _.get(testResults, 'nhctavg');
+                            this.phctAvg = _.get(testResults, 'phctavg');
+                            this.ibv = _.get(testResults, 'ibv');
+                            this.tbv = _.get(testResults, 'tbv');
+                            this.tbvDeviation = _.get(testResults, 'tbvDeviation');
+                            this.rbcv = _.get(testResults, 'rbcv');
+                            this.rbcvDeviation = _.get(testResults, 'rbcvDeviation');
+                            this.pv = _.get(testResults, 'pv');
+                            this.pvDeviation = _.get(testResults, 'pvDeviation');
+                            this.ubv = _.get(testResults, 'ubv');
+                            this.wholeBlood = _.get(testResults, 'wholeBlood');
+                            this.irbcv = _.get(testResults, 'irbcv');
+                            this.ipv = _.get(testResults, 'ipv');
+                            this.albuminTransudationRate = _.get(testResults, 'albuminTransudationRate');
+                        }
+                    } catch (err) {
+                        console.error(err);
+                        onFail(err, "Failed to load prior test");
+                    }
+                },
+                toggleWholeBlood: function () {
+                    this.wholeBlood = !this.wholeBlood;
+                    this.calculateBVA();
+                },
+                toggleUnitsOfMeasure: function () {
+                    if (this.unitsOfMeasurement === 'metric') {
+                        this.unitsOfMeasurement = 'imperial';
+                        this.height = Math.round(this.height / 2.54);
+                        this.weight = Math.round(this.weight / 0.45359237);
+                    } else {
+                        this.unitsOfMeasurement = 'metric';
+                        this.height = Math.round(this.height * 2.54);
+                        this.weight = Math.round(this.weight * 0.45359237);
+                    }
+                },
+                convertTimestampToDecimal: function (ts) {
+                    let colon = ':';
+                    let decimal = '.';
+                    let delimiter = '';
+                    if (_.includes(ts, colon)) {
+                        delimiter = colon;
+                    } else if (_.includes(ts, decimal)) {
+                        delimiter = decimal;
+                    }
+                    if (delimiter === '') {
+                        return ts;
+                    }
+
+                    let splitTime = _.split(ts, delimiter);
+                    let m = Number(splitTime[0]);
+
+                    let s = Number(splitTime[1]);
+                    let d = parseFloat(s / 60);
+                    var tTime = parseFloat(m + d);
+                    return tTime;
+                },
+                calculateBVA: async function () {
+                    const context = this;
+                    // Get an array of samples.#
+                    let strippedSpectrumArray = [this.postInjection1.counts, this.postInjection2.counts, this.postInjection3.counts, this.postInjection4.counts, this.postInjection5.counts];
+
+                    //ensure all these are numeric and not strings
+                    strippedSpectrumArray = _.map(strippedSpectrumArray, (c) => {
+                        return Number(c);
+                    });
+
+
+                    let timeArray = [this.postInjection1Time, this.postInjection2Time, this.postInjection3Time, this.postInjection4Time, this.postInjection5Time];
+
+                    var nuTimeArray = [];
+                    var nuStrippedSpectrumArray = [];
+
+                    //remove 0 counts and their corrosponding timestamps
+                    for (var i = 0; i < strippedSpectrumArray.length; i++) {
+                        let c = strippedSpectrumArray[i];
+                        let included = _.get(context, 'postInjection' + String(i + 1) + '.included', false);
+                        console.log('included', included)
+                        if (c > 0 && included) {
+                            nuStrippedSpectrumArray.push(c);
+                            nuTimeArray.push(timeArray[i]);
+                        }
+                    }
+
+                    timeArray = nuTimeArray;
+                    strippedSpectrumArray = nuStrippedSpectrumArray;
+
+                    console.log('strippedSpectrumArray', strippedSpectrumArray);
+
+                    // Get an array of times from injection on samples.
+                    let cleanTimeArray = [];
+                    let injectionTS = new Date(this.doseInjectionTimestamp);
+                    for (var time of timeArray) {
+                        if (time != 0) {
+                            let diffMs = new Date(time) - injectionTS; //this is the diff in millisecs
+                            let diffMins = diffMs / 60000; ///60000 millisecs in a minute
+                            cleanTimeArray.push(diffMins);
+                        }
+                    }
+
+                    // Get an array of hct's
+                    let hctArray = [];
+                    hctArray.push(Number(this.postInjection1.phct));
+                    /*
+                        A.S. 9.6.22
+                        Assumption here is that if we only received 1 (p)HCT from the lab, put it in PostInjection1's HCT slot
+                        and we will simply auto-populate the rest if no others are present.
+                    */
+
+                    if (this.postInjection2.counts > 0) {
+                        var tPhct = Number(this.postInjection2.phct || 0);
+                        if (tPhct === 0) {
+                            this.postInjection2.phct = hctArray[0];
+                        }
+                        hctArray.push(Number(this.postInjection2.phct));
+                    }
+
+                    if (this.postInjection3.counts > 0) {
+                        var tPhct = Number(this.postInjection3.phct || 0);
+                        if (tPhct === 0) {
+                            this.postInjection3.phct = hctArray[0];
+                        }
+                        hctArray.push(Number(this.postInjection3.phct));
+                    }
+
+                    if (this.postInjection4.counts > 0) {
+                        var tPhct = Number(this.postInjection4.phct || 0);
+                        if (tPhct === 0) {
+                            this.postInjection4.phct = hctArray[0];
+                        }
+                        hctArray.push(Number(this.postInjection4.phct));
+                    }
+
+                    if (this.postInjection5.counts > 0) {
+                        var tPhct = Number(this.postInjection5.phct || 0);
+                        if (tPhct === 0) {
+                            this.postInjection5.phct = hctArray[0];
+                        }
+                        hctArray.push(Number(this.postInjection5.phct));
+                    }
+
+                    console.log('HCT ARRAY', hctArray)
+                    console.log('Time Array', cleanTimeArray)
+
+                    let results = calcBloodVol(hctArray, cleanTimeArray, this.phctAvg, this.backgroundCount, this.baselineCount, strippedSpectrumArray, this.standardCount, this.wholeBlood ? "wholeBlood" : "plasma", this.backgroundCountMins, this.sampleCountMins);
+
+                    //PHCT average
+                    this.phctAvg = _.mean(hctArray);
+                    this.tbv = results.tbv;
+                    this.rbcv = results.rbcv;
+                    this.pv = results.pv;
+                    this.ubv = results.ubv;
+                    this.ibv = await this.getIdealBloodVolume();
+
+                    this.tbvDeviation = calculateTBVDeviation(this.tbv, this.ibv);
+                    this.irbcv = calculateIdealRBCV(this.tbvDeviation, this.rbcv, this.amputeeCorrectionPercentage);
+                    this.ipv = calculateIdealPV(this.tbvDeviation, this.pv);
+                    this.rbcvDeviation = calculateRBCVDeviation(this.rbcv, this.irbcv);
+                    this.pvDeviation = calculatePVDeviation(this.pv, this.ipv);
+                    this.albuminTransudationRate = results.albuminTransudationRate;
+
+                    //calculate NHCT values now that we have TBV and IBV
+                    this.nhctAvg = calculateNHCT(this.tbv, this.ibv, this.phctAvg);
+                    this.postInjection1.nhct = calculateNHCT(this.tbv, this.ibv, this.postInjection1.phct);
+                    this.postInjection2.nhct = calculateNHCT(this.tbv, this.ibv, this.postInjection2.phct);
+                    this.postInjection3.nhct = calculateNHCT(this.tbv, this.ibv, this.postInjection3.phct);
+                    this.postInjection4.nhct = calculateNHCT(this.tbv, this.ibv, this.postInjection4.phct);
+                    this.postInjection5.nhct = calculateNHCT(this.tbv, this.ibv, this.postInjection5.phct);
+                },
+                // DETECTOR METHODS ////////////////////////////////////////////////////////////
+                async openReader() {
+                    const context = this;
+                    if (context.detectorInUse) {
+                        onFail("Please wait till the detector is finished counting", "Detector is not ready to count");
+                        return;
+                    }
+
+                    try {
+                        await openTopazReader();
+                    } catch (err) {
+                        console.error(err);
+                        onFail(err, 'Failed to open Topaz Reader');
+                        throw (err);
+                    }
+                },
+                async closeReader() {
+                    const context = this;
+                    try {
+                        await closeTopazReader();
+                        context.detectorInUse = false;
+                    } catch (err) {
+                        console.error(err);
+                        onFail(err, 'Failed to close Topaz Reader');
+                    }
+                },
+                async countSample(sampleName) {
+                    this.currentlyCounting = sampleName;
+                    const context = this;
+
+                    if (context.detectorInUse) {
+                        switch (sampleName) {
+                            case 'backgroundSpectrum':
+                                break;
+                            case 'standardSpectrum':
+                                break;
+                            case 'baselineSpectrum':
+                                break;
+                            case 'postInjection1':
+                                break;
+                            case 'postInjection2':
+                                break;
+                            case 'postInjection3':
+                                break;
+                            case 'postInjection4':
+                                break;
+                            case 'postInjection5':
+                                break;
+                        }
+                        onFail("Please wait till the detector is finished counting", "Detector is not ready to count");
+                        return;
+                    }
+
+                    try {
+                        // Clear previous data if any, then start a read and start a timer based on the Sample Count Time.
+                        await clearMemory();
+                        await startRead();
+                        this.detectorInUse = true;
+                        context.run(sampleName);
+                    } catch (err) {
+                        onFail(err, "Failed to start data aquisition");
+                    }
+
+                },
+                run(sampleName) {
+                    const context = this;
+
+                    let tCountTime = context.sampleCountMins;
+
+                    if (sampleName === "backgroundSpectrum") {
+                        tCountTime = context.backgroundCountMins;
+                    }
+
+                    this.startTimer(tCountTime);
+
+                    setTimeout(function () {
+                        context.updateSpectrum(sampleName);
+                        context.currentlyCounting = "";
+                    }, tCountTime * 60 * 1000);
+                },
+                async updateSpectrum(sampleName) {
+                    await stopRead();
+                    this.detectorInUse = false;
+                    const context = this;
+                    try {
+                        const response = await readSpectrum();
+                        context.spectrum = response.detectorSpectrum;
+                        context.fineGain = response.fineGain;
+
+                        var cs = response.calculatedSample;
+
+                        if (cs && sampleName != 'backgroundSpectrum') {
+                            context.tracer = cs.sampleName;
+                            context.centroid = cs.centroid;
+                            context.lowChannel = cs.lowChannel;
+                            context.highChannel = cs.highChannel;
+                            context.checkStandardCalibration();
+                        }
+
+                        context.reportSpectrum(sampleName);
+                        return;
+                    } catch (err) {
+                        onFail("Failed to read spectrum.");
+                        console.error(err);
+                    }
+                },
+                async checkStandardCalibration() {
+                    try {
+                        // Check to see if detector centroid is as expected for proper calibration.
+                        const context = this;
+                        const i131Low = this.i131 - 3;
+                        const i131High = this.i131 + 3;
+                        if (context.centroid >= i131Low && context.centroid <= i131High) {
+                            await context.saveFineGainSettingToDatabase();
+                            await context.saveCalibration();
+                            console.log("PASSING CENTROID", this.centroid);
+                            console.log("PASSING FINE GAIN", this.fineGain);
+                        } else {
+                            context.calculateFineGainAdjust();
+                        }
+                    } catch (err) {
+                        onFail(err, 'Failed to check standard calibration');
+                    }
+                },
+                async saveFineGainSettingToDatabase() {
+                    const url = "TopazDetector/SaveFineGainCalibration"
+                    const payload = {
+                        FineGain: parseInt(this.fineGain),
+                        Detector: "Topaz"
+                    };
+                    try {
+                        await axios.post(url, payload);
+                    } catch (err) {
+                        console.error(err);
+                        onFail(err, "Detector settings failed to update in database.");
+                    }
+                },
+                async saveCalibration() {
+                    if (this.centroid <= 700 && this.centroid >= 600) {
+                        this.standard = "cesium";
+                    } else {
+                        this.standard = "i131";
+                    }
+                    const url = "TopazDetector/SaveCalibration"
+                    const payload = {
+                        Timestamp: isoUTCNow(),
+                        Standard: this.standard,
+                        StoredPeaks: `Centroid: ${this.centroid}, Fine Gain: ${this.fineGain}`
+                    };
+                    try {
+                        await axios.post(url, payload);
+                    } catch (err) {
+                        console.error(err);
+                        onFail(err, "Detector settings failed to update in database.");
+                    }
+                },
+                // ADJUST THE FINE GAIN TO AUTO CALIBRATE THE NEEDED FINE GAIN FOR A KNOWN CENTROID.....
+                calculateFineGainAdjust: async function () {
+                    const numChannels = 4095;
+                    console.log('centroid', this.centroid);
+                    console.log('OG Fine Gain', this.fineGain);
+                    let ogFG = this.fineGain / numChannels;
+                    console.log('ogFG', ogFG);
+                    ogFG++;
+                    console.log('+ogFG', ogFG);
+                    ogFG = (ogFG * this.i131) / this.centroid;
+                    console.log('*ogFG', ogFG);
+                    ogFG--;
+                    console.log('-ogFG', ogFG);
+                    this.fineGain = Math.ceil(ogFG * numChannels);
+                    console.log('New Fine Gain', this.fineGain);
+                    await this.setDetectorFineGain();
+                },
+                async setDetectorFineGain() {
+                    // AcqMode 0 = Pulse Height Analysis Mode (PHA), 1 = Multi-channel Scaling Mode (MCS)
+                    const context = this;
+                    try {
+                        const payload = {
+                            FineGain: parseInt(this.fineGain),
+                        };
+
+                        await updateDetectorFineGain(payload);
+                        await context.saveFineGainSettingToDatabase();
+                        return;
+                    } catch (err) {
+                        onFail(err, "Failed to update detector settings");
+                    }
+                },
+                reportSpectrum: function (sampleName) {
+                    const context = this;
+                    let counts = this.spectrum.slice(this.lowChannel, this.highChannel).reduce((acc, cur) => acc += cur, 0);
+
+                    switch (sampleName) {
+                        case "backgroundSpectrum":
+                            context.backgroundSpectrum = context.spectrum;
+                            context.backgroundCount = counts;
+                            context.backgroundSpectrumCountsArray.push(counts);
+                            if (context.backgroundCount > 300) {
+                                onFail("Background count is too high, check your surrounding area and count again.");
+                                break;
+                            } else { break; }
+                        case "standardSpectrum":
+                            context.standardSpectrum = context.spectrum;
+                            context.standardCount = counts;
+                            break;
+                        case "baselineSpectrum":
+                            context.baselineSpectrum = context.spectrum;
+                            context.baselineCount = counts;
+                            break;
+                        case "postInjection1":
+                            context.postInjection1.spectrum = context.spectrum;
+                            context.postInjection1.counts = counts;
+                            context.postInjection1.countedTimestamp = isoUTCNow();
+                            break;
+                        case "postInjection2":
+                            context.postInjection2.spectrum = context.spectrum;
+                            context.postInjection2.counts = counts;
+                            context.postInjection2.countedTimestamp = isoUTCNow();
+                            break;
+                        case "postInjection3":
+                            context.postInjection3.spectrum = context.spectrum;
+                            context.postInjection3.counts = counts;
+                            context.postInjection3.countedTimestamp = isoUTCNow();
+                            break;
+                        case "postInjection4":
+                            context.postInjection4.spectrum = context.spectrum;
+                            context.postInjection4.counts = counts;
+                            context.postInjection4.countedTimestamp = isoUTCNow();
+                            break;
+                        case "postInjection5":
+                            context.postInjection5.spectrum = context.spectrum;
+                            context.postInjection5.counts = counts;
+                            context.postInjection5.countedTimestamp = isoUTCNow();
+                            break;
+                        default:
+                            break;
+                    }
+                },
+                // FORM METHODS
+                resetValues: function () {
+                    // Cleanest way to reset all vue variables.
+                    location.reload();
+                },
+                stopDataAquisition: async function (sampleName) {
+                    const context = this;
+                    try {
+                        await stopRead();
+                        return;
+                    } catch (err) {
+                        onFail("Failed to stop data aquisition");
+                        console.error(err);
+                    }
+                },
+                startTimer: function (countForTime) {
+                    const context = this;
+                    var now = new Date();
+                    var countDownDate = moment(now).add(countForTime, 'm').toDate();
+
+                    this.queProgressBar("counterProgressBar", countForTime);
+
+                    let intervalTimer = setInterval(function () {
+                        var now = new Date().getTime();
+                        // Find the distance between now and the count down date
+                        var distance = countDownDate - now;
+
+                        let textfield = document.getElementById("counterProgressBar");
+                        if (textfield) {
+                            var minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+                            var seconds = Math.floor((distance % (1000 * 60)) / 1000);
+                            var string = `<span class="progress-inner"> ${minutes}m ${seconds}s remaining`;
+
+                            textfield.innerHTML = string;
+                        }
+
+                        // If the count down is finished, write some text
+                        if (distance <= 0) {
+                            clearInterval(intervalTimer);
+                        }
+                    }, 1000);
+                },
+                queProgressBar: function (progressBarName, minutes) {
+                    const context = this;
+                    const progressBar = document.getElementById(progressBarName);
+                    if (!progressBar) {
+                        setTimeout(() => {
+                            context.queProgressBar(progressBarName, minutes);
+                        }, 1000);
+                        return;
+                    }
+                    if (progressBar) {
+                        progressBar.animate([
+                            // keyframes
+                            { width: '0' },
+                            { width: '100%' }
+                        ], {
+                            // timing options
+                            duration: minutes * 60 * 1000,
+                            iterations: 1
+                        });
+                    }
+                },
+                getPostInjectionDrawnTimestamp: function (sampleNumber) {
+                    let rv = undefined;
+                    switch (sampleNumber) {
+                        case 1:
+                            rv = this.postInjection1.drawnTimestamp;
+                            break;
+                        case 2:
+                            rv = this.postInjection2.drawnTimestamp;
+                            break;
+                        case 3:
+                            rv = this.postInjection3.drawnTimestamp;
+                            break;
+                        case 4:
+                            rv = this.postInjection4.drawnTimestamp;
+                            break;
+                        case 5:
+                            rv = this.postInjection5.drawnTimestamp;
+                            break;
+                        default:
+                            break;
+                    }
+                    if (_.isUndefined(rv)) {
+                        return rv;
+                    }
+                    return rv;
+                },
+                getPostInjectionCountedTimestamp: function (sampleNumber) {
+                    var tsArray = [];
+                    var countsArray = [];
+                    tsArray.push(this.postInjection1.countedTimestamp);
+                    countsArray.push(this.postInjection1.counts);
+                    tsArray.push(this.postInjection2.countedTimestamp);
+                    countsArray.push(this.postInjection2.counts);
+                    tsArray.push(this.postInjection3.countedTimestamp);
+                    countsArray.push(this.postInjection3.counts);
+                    tsArray.push(this.postInjection4.countedTimestamp);
+                    countsArray.push(this.postInjection4.counts);
+                    tsArray.push(this.postInjection5.countedTimestamp);
+                    countsArray.push(this.postInjection5.counts);
+
+                    for (var i = 0; i < tsArray.length; i++) {
+                        let t = tsArray[i];
+                        if (t === undefined) {
+                            if (countsArray[i] > 0) {
+                                tsArray[i] = isoUTCNow();
+                            }
+                            continue; // Means no value was entered.
+                        }
+                    }
+                    //the array is now full of Date objects representing when each sample was drawn.
+                    return tsArray[sampleNumber - 1];//return the one requested
+                },
+                getIdealBloodVolume: function () {
+                    return new Promise((resolve, reject) => {
+                        const context = this;
+                        const url = "BVA/GetIdealBloodVolume";
+                        const Height = this.metricHeight;
+                        const Weight = this.metricWeight;
+                        const Sex = this.sex;
+                        const payload = {
+                            Height,
+                            Weight,
+                            Sex
+                        }
+                        try {
+                            axios.post(url, payload).then(function (response) {
+                                var idealBloodVolume = response.data;
+                                console.log("IBV", idealBloodVolume)
+                                console.log('ACP', context.amputeeCorrectionPercentage)
+                                var amputeeCorrectionValue = idealBloodVolume * (context.amputeeCorrectionPercentage / 100);
+                                console.log("ACV", amputeeCorrectionValue);
+                                var correctedIBV = idealBloodVolume - amputeeCorrectionValue;
+                                console.log('CIBV', correctedIBV)
+                                resolve(correctedIBV);
+                            });
+                        } catch (err) {
+                            reject(err);
+                        }
+                    })
+                },
+                async saveTestResults() {
+                    const context = this;
+                    const url = "BVA/SaveTestResults"
+                    const payload = {
+                        PatientID: "" + context.patientID,
+                        Weight: context.metricWeight,
+                        Height: context.metricHeight,
+                        Sex: context.sex,
+                        Age: Number(context.age),
+                        OrderingPhysician: context.orderingPhysician,
+                        Amputee: context.amputee,
+                        AmputeeCorrectionPercentage: context.amputeeCorrectionPercentage,
+                        Pregnant: context.pregnant,
+                        InjectateLotNumber: "" + context.injectateLotNumber,
+                        StandardStrength: context.standardStrength,
+                        InjectionTimestamp: "" + context.doseInjectionTimestamp,
+                        BackgroundCountMins: Number(context.backgroundCountMins),
+                        TracerDisMins: Number(context.tracerDisMins),
+                        SampleCountMins: Number(context.sampleCountMins),
+                        AlbuminTransudationRate: Number(context.albuminTransudationRate),
+                        PHCTAVG: parseFloat("" + context.phctAvg),
+                        NHCTAVG: parseFloat("" + context.nhctAvg),
+                        IBV: parseFloat("" + context.ibv),
+                        IRBCV: parseFloat("" + context.irbcv),
+                        IPV: parseFloat("" + context.ipv),
+                        UBV: parseFloat("" + context.ubv),
+                        TBV: parseFloat("" + context.tbv),
+                        TBVDeviation: parseFloat("" + context.tbvDeviation),
+                        PV: parseFloat("" + context.pv),
+                        PVDeviation: parseFloat("" + context.pvDeviation),
+                        RBCV: parseFloat("" + context.rbcv),
+                        RBCVDeviation: parseFloat("" + context.rbcvDeviation),
+                        LowChannel: context.lowChannel,
+                        HighChannel: context.highChannel,
+                        BackgroundSpectrum: context.backgroundSpectrum ?? [],
+                        BackgroundCount: Number(context.backgroundCount),
+                        BaselineSpectrum: context.baselineSpectrum ?? [],
+                        BaselineCount: Number(context.baselineCount),
+                        StandardSpectrum: context.standardSpectrum ?? [],
+                        StandardCount: Number(context.standardCount),
+                        WholeBlood: context.wholeBlood,
+                        //using lodash here to have the baked in null check w/o throwing exception
+                        PostInjection1DrawnTimestamp: this.getPostInjectionDrawnTimestamp(1),
+                        PostInjection1CountedTimestamp: this.getPostInjectionCountedTimestamp(1),
+                        PostInjection1Spectrum: _.get(context, 'postInjection1.spectrum', []),
+                        PostInjection1Count: Number(_.get(context, 'postInjection1.counts', 0)),
+                        PostInjection1PHCT: Number(_.get(context, 'postInjection1.phct', 0.0)),
+                        PostInjection1NHCT: Number(_.get(context, 'postInjection1.nhct', 0.0)),
+                        PostInjection1Included: _.get(context, 'postInjection1.included', false),
+                        PostInjection2DrawnTimestamp: this.getPostInjectionDrawnTimestamp(2),
+                        PostInjection2CountedTimestamp: this.getPostInjectionCountedTimestamp(2),
+                        PostInjection2Spectrum: _.get(context, 'postInjection2.spectrum', []),
+                        PostInjection2Count: Number(_.get(context, 'postInjection2.counts', 0)),
+                        PostInjection2PHCT: Number(_.get(context, 'postInjection2.phct', 0.0)),
+                        PostInjection2NHCT: Number(_.get(context, 'postInjection2.nhct', 0.0)),
+                        PostInjection2Included: _.get(context, 'postInjection2.included', false),
+                        PostInjection3DrawnTimestamp: this.getPostInjectionDrawnTimestamp(3),
+                        PostInjection3CountedTimestamp: this.getPostInjectionCountedTimestamp(3),
+                        PostInjection3Spectrum: _.get(context, 'postInjection3.spectrum', []),
+                        PostInjection3Count: Number(_.get(context, 'postInjection3.counts', 0)),
+                        PostInjection3PHCT: Number(_.get(context, 'postInjection3.phct', 0.0)),
+                        PostInjection3NHCT: Number(_.get(context, 'postInjection3.nhct', 0.0)),
+                        PostInjection3Included: _.get(context, 'postInjection3.included', false),
+                        PostInjection4DrawnTimestamp: this.getPostInjectionDrawnTimestamp(4),
+                        PostInjection4CountedTimestamp: this.getPostInjectionCountedTimestamp(4),
+                        PostInjection4Spectrum: _.get(context, 'postInjection4.spectrum', []),
+                        PostInjection4Count: Number(_.get(context, 'postInjection4.counts', 0)),
+                        PostInjection4PHCT: Number(_.get(context, 'postInjection4.phct', 0.0)),
+                        PostInjection4NHCT: Number(_.get(context, 'postInjection4.nhct', 0.0)),
+                        PostInjection4Included: _.get(context, 'postInjection4.included', false),
+                        PostInjection5DrawnTimestamp: this.getPostInjectionDrawnTimestamp(5),
+                        PostInjection5CountedTimestamp: this.getPostInjectionCountedTimestamp(5),
+                        PostInjection5Spectrum: _.get(context, 'postInjection5.spectrum', []),
+                        PostInjection5Count: Number(_.get(context, 'postInjection5.counts', 0)),
+                        PostInjection5PHCT: Number(_.get(context, 'postInjection5.phct', 0.0)),
+                        PostInjection5NHCT: Number(_.get(context, 'postInjection5.nhct', 0.0)),
+                        PostInjection5Included: _.get(context, 'postInjection5.included', false),
+                        TestType: "Manual"
+                    };
+                    console.log("PAYLOAD", payload);
+
+                    try {
+                        await axios.post(url, payload);
+                        onSuccess("Test Results Saved", "Test Results Saved");
+                    } catch (err) {
+                        console.error(err);
+                        onFail(err, "Failed to save test results");
+                    }
+                },
+                startTimerDissemination: function () {
+                    var context = this;
+                    //var startTimestamp = moment().startOf("day");
+                    setInterval(function () {
+                        //startTimestamp.add(1, 'second');
+                        //var elapsed = startTimestamp.format('mm:ss');
+                        context.setDisseminationTimePretty();
+
+                        $('#tracerDisseminationTimerDisplay').html('E: ' + context.tracerDisseminationElapsedPretty + " | R: " + context.tracerDisseminationRemainingPretty);
+
+                    }, 1000);
+                },
+                ...vueMethods
+            },
+            beforeUnmount() {
+                this.closeReader();
+            }
+        })
+    }
+    feather.replace();
+</script>
+
+<style scoped>
+    html {
+        scroll-behavior: smooth;
+    }
+
+    body {
+        background-image: url(../img/blue_bubbles.png);
+        background-repeat: none;
+        background-size: cover;
+    }
+
+    input,
+    select {
+        border: none;
+        background-color: #fff;
+        width: 100%;
+    }
+
+    .column {
+        float: left;
+        width: 50%;
+    }
+
+    .row:after {
+        content: "";
+        display: table;
+        clear: both;
+    }
+
+    /* .navbar {
+        padding: 1rem;
+        justify-content: flex-end;
+    } */
+
+    #app {
+        height: 100%;
+    }
+
+    .check {
+        -webkit-appearance: none;
+        /*hides the default checkbox*/
+        height: 20px;
+        width: 20px;
+        position: relative;
+        top: 20px;
+        left: 20px;
+        transition: 0.10s;
+        background-color: #FE0006;
+        text-align: center;
+        font-weight: 600;
+        color: white;
+        border-radius: 3px;
+        outline: none;
+    }
+
+    .check:checked {
+        background-color: #0E9700;
+    }
+
+    .check:before {
+        content: "✖";
+    }
+
+    .check:checked:before {
+        content: "✔";
+    }
+
+    .check:hover {
+        cursor: pointer;
+        opacity: 0.8;
+    }
+
+    #counterProgressBar {
+        width: 0;
+        transition: width 300s;
+        transition-timing-function: linear;
+    }
+
+    #counterProgressBar.loaded {
+        width: 100%;
+    }
+
+    .progress {
+        height: 28px;
+        font-size: 1rem;
+        background-color: lightgray;
+        border-radius: 0;
+        margin: 0 auto;
+    }
+
+    .progress-inner {
+        padding: 0 1em;
+    }
+
+    .status-indicator {
+        position: absolute;
+        top: 4em;
+        left: 0;
+        background-color: #fff;
+        padding: 0.5em 2em;
+    }
+
+    .status-indicator h5 {
+        font-size: .75em;
+        margin-bottom: 0;
+    }
+
+    .fakelink {
+        color: #0000EE;
+    }
+
+    .min-width-table {
+        padding-right: 0;
+    }
+
+    .count-input {
+        padding-left: 0;
+    }
+
+    select#sex {
+        border: 1px solid #ced4da;
+        border-radius: 15px;
+        appearance: none;
+    }
+
+    option.sex-opition {
+        font-size: 14px;
+    }
+
+    .rounded-card.standard-wrap.bg-white {
+        height: 88vh;
+        overflow-y: scroll;
+    }
+
+    .single-item {
+        position: relative;
+    }
+
+    .lab-mode-nav {
+        position: absolute;
+        z-index: 9999;
+        top: 72px;
+        height: 114px;
+        width: 100%;
+        padding: 1em;
+    }
+
+    .lab-mode-nav i {
+        color: white;
+        font-size: 52px;
+        margin-right: 1.375em;
+        opacity: .5;
+    }
+
+    .lab-mode-nav i.active {
+        opacity: 1;
+    }
+
+    .input-label.result {
+        font-size: 48px;
+    }
+
+    .result-row p {
+        margin-bottom: 0;
+    }
+
+    .result-row {
+        padding: .5em 0;
+    }
+
+    .fade-enter-active,
+    .fade-leave-active {
+        transition: opacity .5s;
+    }
+
+    .fade-enter,
+    .fade-leave-to
+
+    /* .fade-leave-active below version 2.1.8 */
+        {
+        opacity: 0;
+    }
+
+    #doseInjectionTimestampValue span {
+        padding-top: 19px;
+    }
+
+    p.text-center {
+        position: absolute;
+        bottom: 155px;
+        left: 0;
+        padding: .5em;
+    }
+
+    .modal-footer {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+    }
+
+    .modal-body {
+        padding-top: 7em;
+    }
+
+    .input-wrap .micro-label {
+        position: absolute;
+        top: -31px;
+        left: 0;
+        right: 0;
+        display: flex;
+        justify-content: center;
+        font-size: 20px;
+        font-weight: 600;
+    }
+
+    .sample {
+        text-align: center;
+    }
+
+    #sample1Timestamp span {
+        padding-right: 0;
+    }
+
+    div#tracerDisseminationTimerDisplay {
+        color: #fff;
+        position: absolute;
+        top: 32px;
+        left: 0;
+        right: 0;
+        text-align: center;
+    }
+
+    div#counterProgressBarWrapper {
+        position: absolute;
+        top: 0;
+    }
+</style>

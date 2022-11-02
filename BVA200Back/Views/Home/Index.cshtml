@@ -1,0 +1,239 @@
+﻿@using Newtonsoft.Json
+
+<div id="app"
+     v-bind:class="[appBg, !loggedIn ? blueBg : redBg]">
+    <div class="d-flex flex-column justify-content-center standard-wrap"
+         v-if="loggedIn">
+        <h1 class="BVA-title mb-5 text-start">Blood<br>Volume<br>Analyzer</h1>
+
+        <input type="button"
+               class="btn btn-lg blueButton start-test"
+               value="Start Test"
+               v-on:click="startTest" />
+    </div>
+    <div v-else
+         class="h-100 d-flex flex-column">
+        <h1 class="login-heading text-center text-light">Please Login</h1>
+        <div class="h-100 rounded-card standard-wrap bg-white">
+            <form>
+                <div class="form-group text-start">
+                    <label class="input-label"
+                           for="username">Username</label>
+                    <input id="username"
+                           type="text"
+                           class="form-control restyled"
+                           v-model="userName"
+                           placeholder="User Name *"
+                           inputmode="text"
+                           value="" />
+                </div>
+                <div class="form-group text-start">
+                    <label class="input-label"
+                           for="password">Password</label>
+                    <input id="password"
+                           type="password"
+                           class="form-control restyled"
+                           v-model="userPassword"
+                           placeholder="User Password *"
+                           inputmode="password"
+                           value="" />
+                </div>
+                <div class="form-group my-4">
+                    
+                    <input type="button"
+                           class="btn btn-lg greenButton my-4"
+                           value="Login"
+                           v-on:click="logIn" />
+                </div>
+                <div class="copy-wrap d-flex justify-content-center">
+                    <p>Daxor Corporation &copy; <span class="currentyear">Year</span></p>
+                </div>
+            </form>
+        </div>
+    </div>
+    <div class="modal fade"
+         id="qcModal"
+         tabindex="-1"
+         role="dialog"
+         aria-labelledby="qcModalLabel"
+         aria-hidden="true">
+        <div class="modal-dialog"
+             role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"
+                        id="qcModalLabel">Action Needed</h5>
+                    <button type="button"
+                            class="close"
+                            data-dismiss="modal"
+                            aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body d-flex flex-column justify-content-center">
+                    <h4 class="font-weight-bold mb-2 text-center"> QC {{ testType }} must be performed</h4>
+                    <p class="text-muted text-center"> This will allow you to perform a BVA test accurately.</p>
+                </div>
+                <div class="modal-footer">
+                    <input type="button"
+                           v-if="testType !== 'Constancy' && constancyAgeAcceptable && efficiencyStatusPassed && linearityStatusPassed"
+                           class="btn btn-lg lightButton"
+                           data-dismiss="modal"
+                           value="Ignore"
+                           v-on:click="ignoreQC" />
+                    <input type="button"
+                           class="btn btn-lg greenButton"
+                           data-dismiss="modal"
+                           value="Let's Go"
+                           onclick="gotoQCLanding()" />
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+</div>
+
+</div>
+
+@* Vue logic lives here *@
+<script>
+    jQuery(document).ready(function ($) {
+        currentyear = new Date().getFullYear();
+        $('.currentyear').text(currentyear);
+    });
+
+    CreateLoginVue(@Html.Raw(JsonConvert.SerializeObject(Model)));
+
+    function CreateLoginVue(model) {
+        new Vue({
+            el: '#app',
+            data: {
+                loggedIn: false,
+                userName: "surban",
+                userPassword: "daxor",
+                blueBg: "blue-bg",
+                redBg: "red-bg",
+                appBg: "",
+                efficiencyStatusPassed: model.EfficiencyStatusPassed,
+                efficiencyAgeAcceptable: model.EfficiencyAgeAcceptable,
+                constancyStatusPassed: model.ConstancyStatusPassed,
+                constancyAgeAcceptable: model.ConstancyAgeAcceptable,
+                linearityStatusPassed: model.LinearityStatusPassed,
+                linearityAgeAcceptable: model.LinearityAgeAcceptable,
+                recentCalibrationPassed: model.RecentCalibrationPassed,
+                batteryThreshold: 60,//minutes
+            },
+            created: function () {
+                let userSessionGUID = getUserSessionGUID();
+                if (!_.isEmpty(userSessionGUID)) {
+                    this.loggedIn = true;
+                }
+            },
+            mounted: function () {
+                let error = getQueryStringParams('error');
+                if (!_.isEmpty(error)) {
+                    onFail(error, 'Error');
+                }
+            },
+            computed:  {
+                testType: function(){
+                    if(!this.constancyStatusPassed && this.constancyAgeAcceptable){
+                        return 'Constancy'
+                    }else if(!this.efficiencyStatusPassed){
+                        return 'Efficiency'
+                    }else if(!this.linearityStatusPassed){
+                        return 'Linearity'
+                    }else{
+                        return ''
+                    }
+                },
+            },
+            methods: {
+                logIn: function () {
+                    const context = this;
+                    login(context.userName, context.userPassword).then(() => {
+                        context.loggedIn = true;
+                    }).catch((err) => {
+                        context.loggedIn = false;
+                    });
+                },
+                logOut: function () {
+                    const context = this;
+                    logout().then(() => {
+                        context.loggedIn = false;
+                        location.reload();//this is cheap but it works...
+                    }).catch((err) => {
+                        context.loggedIn = false;
+                    });
+                },
+                startTest() {
+                    if (!isBatteryCharging()){
+                        var timeRemaining = getBatteryTimeRemaining();//seconds
+                        console.log('battery life remaining: ',timeRemaining," seconds");
+                        console.log('minimum seconds ',this.batteryThreshold * 60)
+                        if (timeRemaining < this.batteryThreshold * 60){
+                            onFail(`
+                                There is not enough battery power remaining to run a BVA test. Please plug in your charger to proceed.
+                            `,"Battery Too Low")
+                            return;
+                        }
+                    }
+
+                    let oldQC = !this.linearityAgeAcceptable ? this.oldQC + 'QC Linearity' : null;
+                    oldQC = !this.efficiencyAgeAcceptable ? this.oldQC + 'QC Efficiency' : null;
+
+                    if (oldQC) {
+                        $("#qcModal").modal();
+                    } else {
+                        gotoManualCalc();
+                    }
+                },
+                ignoreQC() {
+                    this.badQC = null;
+                    gotoManualCalc();
+                },
+                ...vueMethods
+            }
+        })
+    }
+    feather.replace()
+</script>
+
+<style scoped>
+    #app {
+        height: 100%;
+    }
+
+    .blue-bg {
+        background-image: url(../img/blue_bubbles.png);
+        background-repeat: none;
+        background-size: cover;
+    }
+
+    .red-bg {
+        background-image: url(../img/red_bubbles.png);
+        background-repeat: none;
+        background-size: cover;
+    }
+
+    .test {
+        height: 100%;
+    }
+
+    .loginBox.d-flex.justify-content-center.align-items-center {
+        height: 100%;
+    }
+
+    input.btn.btn-lg.blueButton {
+        width: 100%;
+    }
+
+    .BVA-title {
+        color: #fff;
+    }
+
+    .login-heading {
+        margin: 2em 0 1em;
+    }
+</style>

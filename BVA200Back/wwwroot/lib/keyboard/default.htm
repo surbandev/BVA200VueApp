@@ -1,0 +1,54 @@
+﻿<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<title>Compact Visual Keyboard Demo</title>
+    <!-- css -->
+    <link rel="stylesheet" href="css/screen.css" media="screen" />
+    <link rel="stylesheet" href="css/keyboard.css" media="screen" />
+<link href="https://www.jqueryscript.net/css/jquerysctipttop.css" rel="stylesheet" type="text/css">
+    <!-- scripts -->
+    <script type="text/javascript" src="https://code.jquery.com/jquery-1.12.4.min.js"></script>
+    <script type="text/javascript" src="scripts/jquery.keyboard.js"></script>
+<style>
+body { padding: 0; font-family: 'Roboto'; min-height: 100vh;background-image: linear-gradient(to top, #a8edea 0%, #fed6e3 100%); }
+h1 { margin-bottom: 150px;}
+.container { margin: 150px auto; max-width: 640px; }
+</style>
+    <!-- IE fix -->
+    <!--[if lte IE 7]>
+        <style type="text/css" media="all">
+            .keys { zoom: 1; margin-bottom: 0.1em; }
+        </style>
+    <![endif]-->
+
+</head>
+<body>
+
+<div class="jquery-script-clear"></div>
+</div>
+</div>
+    <div class="container">
+        <h1>Compact Visual Keyboard Demo</h1>
+    <form action="">
+        <input type="text" id="keyboardInput" inputmode="text"/>
+    </form>
+</div>
+    <script language="javascript" type="text/javascript">
+        $(function() {
+
+            $("#keyboardInput").attachKeyboard(
+                {
+                    iconLocation: 'img/keyboard_key.png',
+                    topOffset : -42,
+                    leftOffset : 20
+                }
+            );
+
+        });
+    </script>
+
+</body>
+</html>

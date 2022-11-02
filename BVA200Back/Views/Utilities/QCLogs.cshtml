@@ -1,0 +1,215 @@
+@using Newtonsoft.Json
+
+<div id="app">
+    <div class="d-flex flex-column justify-content-end h-100">
+        <div class="rounded-card standard-wrap bg-white">
+            <h4 class="mb-3 lab-heading">
+                QC Log
+            </h4>
+            <table id="qcLogList"
+                   class="table">
+                <thead class="thead-light">
+                    <tr>
+                        <th class="th-sm text-center">
+                            <i data-slide="1"
+                               class="fas fa-address-card"></i>
+                        </th>
+                        <th class="th-sm text-center">
+                            <i class="fa fa-calendar"
+                               aria-hidden="true"></i>
+                        </th>
+                        <th class="th-sm text-center">
+                            <i class="fa fa-tint"
+                               aria-hidden="true"></i>
+                        </th>
+                        <th class="th-sm text-center">
+                            <i class="fa fa-percent"
+                               aria-hidden="true"></i>
+                        </th>
+                    </tr>
+                </thead>
+            </table>
+
+            <div class="d-flex flex-column align-items-center">
+                <select name="exportOptions"
+                        id="exportOptions"
+                        class="form-control restyled my-3">
+                    <option value="selectedPDF">Export SELECTED as PDF</option>
+                    <option value="print">Print Selected</option>
+                </select>
+                <input type="button"
+                       id="confirmation-confirm-button"
+                       class="btn btn-lg greenButton"
+                       value="Export"
+                       v-on:click="exportQCLogs" />
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal -->
+    <div class="modal fade"
+         id="printerListModal"
+         tabindex="-1"
+         role="dialog"
+         aria-labelledby="exampleModalCenterTitle"
+         aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered"
+             role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"
+                        id="modal-header-title">Printers</h5>
+                    <button type="button"
+                            class="close"
+                            data-dismiss="modal"
+                            aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body"
+                     id="dvPrinterList">
+                    <div v-for="printer in printers">
+                        <input type="button"
+                               v-on:click="printReport(printer)"
+                               :value='printer'>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@* Vue logic lives here *@
+<script>
+    CreateTestDataVue(@Html.Raw(JsonConvert.SerializeObject(Model)));
+
+    function CreateTestDataVue(model) {
+        new Vue({
+            el: '#app',
+            data: {
+                printers: [],
+                dataTable: undefined
+            },
+            mounted: async function () {
+                this.dataTable = $('#qcLogList').DataTable({
+                    processing: true,
+                    serverSide: true,
+                    select: true,
+                    ajax: {
+                        url: 'GetQCLogsWithPagination',
+                        headers: {
+                            UserSessionGUID: getUserSessionGUID(),
+                            "content-type": "application/json"
+                        },
+                    },
+                    columns: [
+                        { data: 'timestamp' },
+                        { data: 'testType' },
+                        { data: 'result' },
+                        { data: 'createdBy' }
+                    ]
+                });
+                try {
+                    this.printers = await getListOfPrinters();
+                } catch (e) {
+                    this.printers = [];
+                }
+
+            },
+            methods: {
+                exportQCLogs: function () {
+                    var option = $('#exportOptions').find(":selected").val();
+                    switch (option) {
+                        case 'selectedPDF':
+                            this.save('pdf');
+                            break;
+                        case 'print':
+                            this.showPrinterSelectionModal();
+                            break;
+                        default:
+                            break;
+                    }
+                },
+                getSelectedRowIDs: function () {
+                    var selectedRowIDs = [];
+                    var selectedRows = this.dataTable.rows({ selected: true }).data();
+                    for (var i = 0; i < selectedRows.length; i++) {//this will only work with this style of for loop. Trust me.
+                        var row = selectedRows[i];
+                        selectedRowIDs.push(_.get(row, 'id'));
+                    }
+                    return selectedRowIDs;
+                },
+                showPrinterSelectionModal: async function () {
+                    console.log(this.getSelectedRowIDs())
+                    $('#printerListModal').modal('show');
+                },
+                printReport: function (printer) {
+                    $('#printerListModal').modal('hide');
+
+                    var payload = {
+                        "RequestedIDs": this.getSelectedRowIDs(),
+                        "Printer": printer
+                    };
+
+                    const url = "Reports/PrintQCLogs"
+
+                    axios.post(url, payload).then((response) => {
+                        onSuccess("Printing complete");
+                    }).catch((err) => {
+                        console.error(err.response.data);
+                        onFail(err.response.data, "Print Failed");
+                    });
+                },
+                save: async function (format, allResults) {
+                    allResults = allResults || false;
+
+                    var payload = {
+                        "RequestedIDs": this.getSelectedRowIDs(),
+                        "AllResults": allResults || false,
+                        "Format": format
+                    };
+
+                    const url = "Reports/SaveQCLogsToUSBDrive"
+
+                    try {
+                        let response = await axios.post(url, payload);
+                        let filename = response.data;
+                        switch (format) {
+                            case 'xlsx':
+                                onSuccess('Excel saved as ' + filename, 'Excel File Exported');
+                                break;
+                            case 'pdf':
+                                if (filename.length === 1) {
+                                    onSuccess('PDF saved as ' + filename[0], 'PDF File Exported');
+                                } else {
+                                    onSuccess("PDF(s) successfully saved", "Files Saved");
+                                }
+                                break;
+                            default:
+                                onSuccess("File(s) successfully saved", "Files Saved");
+                                break;
+                        }
+
+                    } catch (err) {
+                        console.error(err.response.data);
+                        onFail(err.response.data, "Export Failed");
+                    }
+                },
+                ...vueMethods
+            },
+        })
+    }
+</script>
+
+<style scoped>
+    @*label,
+    .dataTables_filter,
+    .dataTables_info,
+    .dataTables_paginate {
+        display: none;
+    }
+
+    *@table {
+        font-size: 30px;
+    }
+</style>

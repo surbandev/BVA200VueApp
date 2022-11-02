@@ -1,0 +1,123 @@
+.keyboard {
+    /* margin-bottom: 2em; */
+    font-size: 14px;
+    width: 100%;
+    height: auto;
+    /* padding: 8px 0 0 27px; */
+}
+
+.keyboard a {
+    width: 14.2%;
+    height: 3.25em;
+    /* border: 1px solid #444; */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    text-decoration: none;
+    /* float: left; */
+    margin: 0 0.1em 0.1em 0;
+    line-height: 1.5em;
+    background-color: #363C59;
+    color: white;
+    font-size: 22pt;
+}
+
+.keyboard div {
+    clear: left;
+}
+
+.keyboard a.characterset {
+    width: 20%;
+}
+
+.keyboard a.space {
+    width: 60%;
+}
+
+.keyboard a.close {
+    width: 20%;
+}
+
+.keyboard a.inverse {
+    background: #fff;
+    color: black;
+    border: 1px solid #000;
+}
+
+.mid {
+    margin-left: 1em;
+}
+
+.hidden {
+    display: none;
+}
+
+/* a.shift {
+    margin-right: 0.8em;
+} */
+
+/* a.backspace {
+    margin-left: 1.1em;
+} */
+
+.bottom {
+    margin-left: 2.2em;
+}
+
+.keyboard_trigger {
+    cursor: hand;
+    position: absolute;
+}
+
+/* ZACH'S ADDITIONS */
+div#onScreenKeyboard {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    /* background-color: rgba(255, 255, 255, 0.5); */
+    /* filter: blur(1.5rem); */
+    padding: 16px;
+    z-index: 1015;
+}
+
+.flexy {
+    display: flex;
+    justify-content: center;
+}
+
+.flexy a:last-child {
+    margin-right: 0;
+}
+
+.keyboard.numericKeyboard a {
+    width: 25%;
+}
+
+.keyboard a {
+    transition-duration: .2s;
+    border-radius: .25rem;
+}
+
+.keyboard a:active {
+    background-color: #fff;
+    color: #363C59;
+    transition-duration: .2s;
+}
+
+.keyboard {
+    position: relative;
+    z-index: 99996;
+}
+
+.blur-bg {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 1em;
+    background-color: rgba(255, 255, 255, 0.5);
+    filter: blur(.15rem);
+    z-index: 99995;
+}

@@ -1,0 +1,595 @@
+<link rel="stylesheet"
+      href="~/css/common.css">
+<link rel="stylesheet"
+      href="~/css/detector.css">
+@using Newtonsoft.Json
+
+<div id="app">
+    <div class="d-flex flex-column justify-content-end h-100">
+        <div class="rounded-card standard-wrap bg-white">
+            <h4>Detector Setup</h4>
+
+            <div class="card content-left mb-3">
+                <canvas id="myChart"></canvas>
+            </div>
+            <hr>
+            <section class="controls">
+                <div class="d-flex justify-content-between">
+                    <h5>
+                        Detector Controls
+                    </h5>
+                    <i class="fas fa-cog"
+                       data-toggle="modal"
+                       data-target="#detectorSettingsModal"></i>
+                </div>
+
+                <input v-if="!detectorOpen"
+                       type="button"
+                       id="OpenDetectorButton"
+                       class="btn btn-lg greenButton my-2"
+                       value="Open"
+                       v-on:click="openReader" />
+                <input v-if="detectorOpen"
+                       type="button"
+                       id="CloseDetectorButton"
+                       class="btn btn-lg blueButton my-2"
+                       value="Close"
+                       v-on:click="closeReader" />
+                <input v-if="detectorOpen"
+                       type="button"
+                       id="StopDetectorButton"
+                       class="btn btn-lg redButton my-2"
+                       value="Stop"
+                       v-on:click="stopDataAquisition" />
+                <input v-if="detectorOpen && !detectorStarted"
+                       type="button"
+                       id="StartDetectorButton"
+                       class="btn btn-lg greenButton my-2"
+                       value="Start"
+                       v-on:click="startDataAquisition" />
+                <input v-if="detectorOpen"
+                       type="button"
+                       id="ClearDetectorButton"
+                       class="btn btn-lg blueButtonOutline my-2"
+                       value="Clear"
+                       v-on:click="clearReader" />
+            </section>
+            <hr>
+            <section class="measurements">
+                <h5>
+                    Measurements
+                </h5>
+                <div class="d-flex justify-content-between align-items-center result-row">
+                    <p class="mb-0">Real Time:</p>
+                    <p class="mb-0">{{ realTime }} sec</p>
+                </div>
+                <hr>
+                <div class="d-flex justify-content-between align-items-center result-row">
+                    <p class="mb-0">Live Time:</p>
+                    <p class="mb-0">{{ liveTime }} sec</p>
+                </div>
+                <hr>
+                <div class="d-flex justify-content-between align-items-center result-row">
+                    <p class="mb-0">Dead Time:</p>
+                    <p class="mb-0">{{ deadTime }} sec</p>
+                </div>
+                <hr>
+                <div class="d-flex justify-content-between align-items-center result-row">
+                    <p class="mb-0">Integral:</p>
+                    <p class="mb-0">{{ integralCalc }} </p>
+                </div>
+                <hr>
+                <div class="d-flex justify-content-between align-items-center result-row">
+                    <p class="mb-0">ROI:</p>
+                    <p class="mb-0">{{ roi }} </p>
+                </div>
+                <hr>
+                <div class="d-flex justify-content-between align-items-center result-row">
+                    <p class="mb-0">Centroid:</p>
+                    <p class="mb-0">{{ centroid }} &nbsp; ({{ tracer }})</p>
+                </div>
+                <hr>
+                <div class="d-flex justify-content-between align-items-center result-row">
+                    <p class="col-8 mb-0 rem-left-padding">Minutes:</p>
+                    <input type="text"
+                           class="form-control restyled col-4"
+                           inputmode="numeric"
+                           v-model="timerMinutes" />
+                </div>
+                <hr>
+                <div class="d-flex justify-content-between align-items-center result-row">
+                    <p class="col-8 mb-0 rem-left-padding">Seconds:</p>
+                    <input type="text"
+                           class="form-control restyled col-4"
+                           inputmode="numeric"
+                           v-model="timerSeconds" />
+                </div>
+
+                @* <div class="card-body">
+                    <table class="measurement-table">
+                    <tr>
+                    <td>
+                    Real Time: &nbsp; {{ realTime }} sec
+                    </td>
+                    <td>
+                    Live Time: &nbsp; {{ liveTime }} sec
+                    </td>
+                    </tr>
+                    <tr>
+                    <td>
+                    Dead Time: &nbsp; {{ deadTime }} sec
+                    </td>
+                    <td>
+                    Integral: &nbsp; {{ integralCalc }}
+                    </td>
+                    </tr>
+                    <tr>
+                    <td>
+                    ROI: &nbsp; {{ roi }}
+                    </td>
+                    <td>
+                    Centroid:
+                    <span>&nbsp; {{ centroid }} &nbsp; ({{ tracer }})</span>
+                    </td>
+                    </tr>
+                    <tr>
+                    <td>
+                    Minutes: &nbsp; <input type="text"
+                    inputmode="numeric"
+                    v-model="timerMinutes" />
+                    </td>
+                    <td>
+                    Seconds: &nbsp; <input type="text"
+                    inputmode="numeric"
+                    v-model="timerSeconds" />
+                    </td>
+                    </tr>
+                    </table>
+                    </div> *@
+            </section>
+
+        </div>
+    </div>
+    <div class="modal fade"
+         id="detectorSettingsModal"
+         tabindex="-1"
+         role="dialog"
+         aria-labelledby="exampleModalLabel"
+         aria-hidden="true">
+        <div class="modal-dialog"
+             role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"
+                        id="exampleModalLabel">Detector Settings</h5>
+                    <button type="button"
+                            class="close"
+                            data-dismiss="modal"
+                            aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+
+                    @* <tr>
+                        <td>High Channel</td>
+                        <td style="width: 120px;"><input type="text"
+                        inputmode="numeric"
+                        v-model="highChannel"
+                        class="form-control
+                        userInputFieldDetectorSetup">
+                        </td>
+                        </tr>
+                        <tr>
+                        <td>Low Channel</td>
+                        <td style="width: 120px;"><input type="text"
+                        inputmode="numeric"
+                        v-model="lowChannel"
+                        class="form-control
+                        userInputFieldDetectorSetup">
+                        </td>
+                        </tr> *@
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <label for="fine-gain"
+                               class="mb-0 col-8">Fine Gain</label>
+                        <input id="fine-gain"
+                               type="text"
+                               inputmode="numeric"
+                               v-model="fineGain"
+                               class="form-control restyled userInputFieldDetectorSetup col-4 text-end">
+
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <label for="coarse-gain"
+                               class="mb-0 col-8">Coarse Gain</label>
+                        <input id="coarse-gain"
+                               type="text"
+                               inputmode="numeric"
+                               v-model="coarseGain"
+                               class="form-control restyled userInputFieldDetectorSetup col-4 text-end">
+
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <label for="tracer-count-time"
+                               class="mb-0 col-8">Tracer Count Time</label>
+                        <input id="tracer-count-time"
+                               type="text"
+                               inputmode="numeric"
+                               v-model="minutesToCountDissemination"
+                               class="form-control restyled userInputFieldDetectorSetup col-4 text-end">
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <label for="sample-count-time"
+                               class="mb-0 col-8">Sample Count Time</label>
+                        <input id="sample-count-time"
+                               type="text"
+                               inputmode="numeric"
+                               v-model="minutesToCountSample"
+                               class="form-control restyled userInputFieldDetectorSetup col-4 text-end">
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <label for="count-bg-time"
+                               class="mb-0 col-8">Count BG Time</label>
+                        <input id="count-bg-time"
+                               type="text"
+                               inputmode="numeric"
+                               v-model="countBGTime"
+                               class="form-control restyled userInputFieldDetectorSetup col-4 text-end">
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <label for="sample-vol"
+                               class="mb-0 col-8">Sample Vol.</label>
+                        <input id="sample-vol"
+                               type="text"
+                               inputmode="numeric"
+                               v-model="sampleVol"
+                               class="form-control restyled userInputFieldDetectorSetup col-4 text-end">
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <label for="lld"
+                               class="mb-0 col-8">LLD</label>
+                        <input id="lld"
+                               type="text"
+                               inputmode="numeric"
+                               v-model="lld"
+                               class="form-control restyled userInputFieldDetectorSetup col-4 text-end">
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <label for="acq-mode"
+                               class="mb-0 col-8">AcqMode</label>
+                        <input id="acq-mode"
+                               type="text"
+                               inputmode="numeric"
+                               v-model="acqMode"
+                               class="form-control restyled userInputFieldDetectorSetup col-4 text-end">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <input id="UpdateDetectorButton"
+                           type="button"
+                           class="btn btn-lg greenButton"
+                           value="Update"
+                           v-on:click="setDetectorSettings" />
+
+                    @* <span class="input-group-btn">
+                        <a href="#"
+                        id="UpdateDetectorButton"
+                        class="btn btn-lg blueButton"
+                        v-on:click="setDetectorSettings">Update</a>
+                        </span> *@
+
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+@* Vue logic lives here *@
+<script>
+    CreateDetectorSetupVue(@Html.Raw(JsonConvert.SerializeObject(Model)));
+
+    function CreateDetectorSetupVue(model) {
+
+        new Vue({
+            el: '#app',
+            data: {
+                lowChannel: model.LowChannel,
+                highChannel: model.HighChannel,
+                tracer: "",
+                centroid: undefined,
+
+                activeColor: "grey",
+                acqMode: 0,
+                chart: undefined,
+                coarseGain: 1,
+                countBGTime: model.CountBGTime,
+                currentUserSession: model.CurrentUserSession,
+                deadTime: 0,
+                detectorOpen: false,
+                detectorStarted: false,
+                detectorState: "Idle",
+                detectorVolume: 1,
+                digitalGain: 0,
+                fineGain: model.FineGain,
+                highVoltageStatus: 0,
+                liveTime: 0,
+                lld: 4,
+                minutesToCountSample: model.CountTime,
+                minutesToCountDissemination: model.TracerDisseminationTime,
+                peaks: "",
+                realTime: 0,
+                sampleVol: 1,
+                spectrum: [],
+                updateInterval: 1000,
+                timerSeconds: 0,
+                timerMinutes: 0,
+                interval: undefined
+            },
+            mounted() {
+                this.updateChart();
+            },
+            computed: {
+                integralCalc: function () {
+                    return this.spectrum.slice(this.lowChannel, this.highChannel).reduce((acc, cur) => acc += cur, 0);
+                },
+                roi: function () {
+                    return this.lowChannel + " - " + this.highChannel;
+                }
+            },
+            async beforeUnmount() {
+                await closeReader();
+            },
+            methods: {
+                // DETECTOR METHODS ------------------------------------------------------------------------------------------------------------------------------------------------
+                async openReader() {
+                    const context = this;
+                    try {
+                        await openTopazReader();
+                        context.detectorOpen = true;
+                    } catch (err) {
+                        onFail(err, 'Failed to open Topaz Reader');
+                    }
+                },
+                async closeReader() {
+                    const context = this;
+                    try {
+                        await closeTopazReader();
+                        context.detectorOpen = false;
+                    } catch (err) {
+                        onFail(err, 'Failed to close Topaz Reader');
+                    }
+                },
+                async clearReader() {
+                    const context = this;
+                    try {
+                        await clearMemory();
+                        context.detectorStarted = false;
+                        context.updateSpectrum();
+                        context.tracer = "";
+                    } catch (err) {
+                        onFail(err, 'Failed to clear Topaz memory');
+                    }
+                },
+                async startDataAquisition() {
+                    const context = this;
+                    try {
+                        await startRead();
+                        context.detectorState = "Counting ";
+                        context.activeColor = "green";
+                        context.detectorStarted = true;
+
+                        context.timerMinutes = context.timerMinutes || 0;
+                        context.timerSeconds = context.timerSeconds || 0;
+
+                        context.run();
+
+                        if (context.timerSeconds > 0 || context.timerMinutes > 0) {
+                            context.interval = setInterval(() => {
+                                context.timerSeconds--;
+                                if (context.timerSeconds === 0) {
+                                    if (context.timerMinutes <= 0) {
+                                        context.timerSeconds = 0;
+                                        //time's up
+                                        context.stopDataAquisition();//this will stop the interval if exists
+                                        return;
+                                    }
+                                }
+                                if (context.timerSeconds === -1 && context.timerMinutes > 0) {
+                                    //if we're here, there's still minutes on the clock
+                                    context.timerMinutes--;
+                                    context.timerSeconds = 59;
+                                }
+
+                            }, 1000);
+                        }
+
+
+                    } catch (err) {
+                        onFail(err, 'Failed to start data aquisition');
+                        console.error(err);
+                    }
+                },
+                async stopDataAquisition() {
+                    const context = this;
+                    try {
+                        context.stop();
+                        await stopRead();
+                        context.detectorState = "Idle";
+                        context.activeColor = "grey";
+                        context.detectorStarted = false;
+                        if (context.interval) {
+                            clearInterval(context.interval);
+                        }
+                        return;
+                    } catch (err) {
+                        onFail(err, 'Failed to stop data aquisition');
+                        console.error(err);
+                    }
+                },
+                async updateSpectrum(sampleName) {
+                    const context = this;
+                    try {
+                        const response = await readSpectrum();
+                        context.acqMode = response.acqMode;
+                        context.digitalGain = response.digitalGain;
+                        context.fineGain = response.fineGain;
+                        context.highVoltageStatus = response.highVoltageStatus;
+                        context.lld = response.lld;
+                        context.liveTime = response.liveTime.toFixed(1);
+                        context.peaks = response.peaks;
+                        context.realTime = response.realTime.toFixed(1);
+                        context.spectrum = response.detectorSpectrum;
+                        context.updateChart();
+
+                        if (context.liveTime >= 0 && context.realTime >= 0) {
+                            d = context.realTime - context.liveTime;
+                            context.deadTime = d.toFixed(1);
+                        }
+                        var cs = response.calculatedSample;
+                        if (cs) {
+                            context.tracer = cs.sampleName;
+                            context.centroid = cs.centroid;
+                            context.lowChannel = cs.lowChannel;
+                            context.highChannel = cs.highChannel;
+                        }
+                        return;
+                    } catch (err) {
+                        await this.closeReader();
+                        onFail("Failed to read spectrum.");
+                        console.error(err);
+                    }
+                },
+                async setDetectorSettings() {
+                    // AcqMode 0 = Pulse Height Analysis Mode (PHA), 1 = Multi-channel Scaling Mode (MCS)
+                    const context = this;
+                    try {
+                        const payload = {
+                            CoarseGain: parseInt(this.coarseGain),
+                            FineGain: parseInt(this.fineGain),
+                            LLD: parseInt(this.lld),
+                            AcqMode: parseInt(this.acqMode)
+                        };
+
+                        await updateDetectorSettings(payload);
+                        await context.updateDatabase();
+                        return;
+                    } catch (err) {
+                        onFail(err, "Failed to update detector settings");
+                    }
+                },
+                async updateDatabase() {
+                    const context = this;
+                    const url = "TopazDetector/SaveDetectorSettings"
+                    const payload = {
+                        Detector: "Topaz",
+                        CoarseGain: parseInt(this.coarseGain),
+                        CountTime: parseFloat(this.minutesToCountSample),
+                        CountBGTime: parseInt(this.countBGTime),
+                        FineGain: parseInt(this.fineGain),
+                        LLD: parseInt(this.lld),
+                        SampleVol: parseInt(this.sampleVol),
+                        TracerDisseminationTime: parseFloat(this.minutesToCountDissemination)
+                    };
+                    try {
+                        await axios.post(url, payload);
+                    } catch (err) {
+                        console.error(err);
+                        onFail(err, "Detector settings failed to update in database.");
+                    }
+                },
+                run() {
+                    const context = this;
+                    this.counting = setInterval(() => this.updateSpectrum(), context.updateInterval)
+                },
+                stop() {
+                    clearInterval(this.counting);
+                },
+                updateChart: function () {
+                    const context = this;
+                    var ctx = document.getElementById('myChart').getContext('2d');
+                    var keys = Object.keys(context.spectrum);
+                    let bgColor = [];
+                    for (var i = 0; i < context.spectrum.length; i++) {
+                        if (_.inRange(i, context.lowChannel, context.highChannel + 1)) {
+                            bgColor.push('#FF0000');
+                        } else {
+                            bgColor.push('#000000');
+                        }
+                    }
+
+                    if (context.chart) {
+                        context.chart.destroy();
+                    }
+                    context.chart = new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels: keys,
+                            datasets: [{
+                                label: '# of Counts ',
+                                data: context.spectrum,
+                                backgroundColor: bgColor,
+                                borderColor: bgColor,
+                                borderWidth: 1
+                            }]
+                        },
+                        options: {
+                            animation: false,
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {
+                                y: {
+                                    beginAtZero: true
+                                },
+                                yAxes: [{
+                                    ticks: {
+                                        fontSize: 18
+                                    }
+                                }],
+                            }
+                        }
+                    });
+                },
+                ...vueMethods
+            }
+        })
+    }
+</script>
+
+<style scoped>
+    .navbar {
+        justify-content: flex-end;
+    }
+
+    .container {
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        max-width: 100%;
+    }
+
+    @*.userInputFieldDetectorSetup{width:100%;}*@.card.content-left {
+        height: 40vh;
+    }
+
+    canvas {
+        padding: 1rem;
+    }
+
+    table.measurement-table {
+        width: 100%;
+    }
+
+    .fas.fa-cog {
+        color: gray;
+    }
+
+    .rem-left-padding {
+        padding-left: 0;
+    }
+
+    @*HACKYFIXTHATNEEDSTOBEDEALTWITHLATER*@.fancybox-content {
+        vertical-align: baseline;
+    }
+</style>

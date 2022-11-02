@@ -1,0 +1,281 @@
+﻿<!DOCTYPE html>
+<html lang="en"
+      style="background-color: white;">
+
+<head>
+    <meta charset="utf-8" />
+    @* <meta name="header" content= "Access-Control-Allow-Origin: https://localhost:5001"> *@
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+    <meta name="referrer"
+          content="no-referrer">
+    <title>@ViewData["Title"] - BVA200</title>
+    <link rel="stylesheet"
+          href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet"
+          href="~/css/fontawesome/all.css" />
+    <link rel="stylesheet"
+          href="~/css/site.css" />
+    <link rel="stylesheet"
+          href="~/css/common.css" />
+    <link rel="stylesheet"
+          href="~/css/chart.css" />
+    <link rel="stylesheet"
+          href="~/css/datatables.css" />
+    <link rel="stylesheet"
+          href="~/lib/toastr/toastr.min.css" />
+    <link rel="stylesheet"
+          href="~/lib/fancybox/jquery.fancybox.css" />
+    <link rel="stylesheet"
+          type="text/css"
+          href="~/lib/slick/slick.css" />
+    <link rel="stylesheet"
+          type="text/css"
+          href="~/lib/slick/slick-theme.css" />
+    <link rel="stylesheet"
+          href="~/lib/keyboard/css/screen.css"
+          media="screen" />
+    <link rel="stylesheet"
+          href="~/lib/keyboard/css/keyboard.css"
+          media="screen" />
+
+
+    @* Script includes to use Vue and Axios *@
+    <script src="~/lib/vue/vue.js"></script>
+    <script src="~/lib/fontawesome/fontawesome.js"></script>
+    <script src="~/lib/axios/axios.js"></script>
+    <script src="~/lib/moment/moment.js"></script>
+    <script src="~/lib/lodash/lodash.js"></script>
+    <script src="~/lib/chart/chart.js"></script>
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.js"></script>
+    <script src="~/lib/jquery/dist/datatables.js"></script>
+    <script src="~/lib/jquery/dist/datatables.select.min.js"></script>
+    <script src="~/lib/toastr/toastr.min.js"></script>
+    <script src="~/lib/fancybox/jquery.fancybox.js"></script>
+    <script src="~/lib/feather.js"></script>
+    <script src="~/lib/slick/slick.min.js"></script>
+    <script src="~/lib/keyboard/scripts/jquery.keyboard.js"></script>
+
+    <script type='text/javascript'
+            src='~/js/tts.js'></script>
+    <script type='text/javascript'
+            src='~/js/dates.js'></script>
+    <script type='text/javascript'
+            src='~/js/cookies.js'></script>
+    <script type='text/javascript'
+            src='~/js/axios.js'></script>
+    <script type='text/javascript'
+            src='~/js/session.js'></script>
+    <script type='text/javascript'
+            src='~/js/navigation.js'></script>
+    <script type='text/javascript'
+            src='~/js/toast.js'></script>
+    <script type='text/javascript'
+            src='~/js/topaz.js'></script>
+    <script type='text/javascript'
+            src='~/js/vue_methods.js'></script>
+    <script type='text/javascript'
+            src='~/js/settings.js'></script>
+    <script type='text/javascript'
+            src='~/js/dss.js'></script>
+    <script type='text/javascript'
+            src='~/js/printers.js'></script>
+    <script type='text/javascript'
+            src='~/js/utilities.js'></script>
+    <script type='text/javascript'
+            src='~/js/battery.js'></script>
+</head>
+
+<body>
+    <header class="my-header">
+        <nav class="navbar navbar-dark">
+            <i id="batteryLevel"
+               class="fa"
+               style="color: #fff"
+               aria-hidden="true"></i>
+            <button class="navbar-toggler"
+                    type="button"
+                    data-toggle="collapse"
+                    data-target="#navbarText"
+                    aria-controls="navbarText"
+                    aria-expanded="false"
+                    aria-label="Toggle navigation">
+                <div class="hamburger"
+                     id="hamburger-1">
+                    <span class="line"></span>
+                    <span class="line"></span>
+                    <span class="line"></span>
+                </div>
+            </button>
+            <div class="collapse navbar-collapse"
+                 id="navbarText">
+                <ul class="navbar-nav">
+                    <a class="nav-link mb-4"
+                       onclick="gotoHome()">
+                        <li class="nav-item">
+                            Home<span class="sr-only"></span>
+                        </li>
+                    </a>
+                    <a class="nav-link mb-4"
+                       onclick="gotoArchivedTests()">
+                        <li class="nav-item">
+                            Archived Tests<span class="sr-only">(current)</span>
+                        </li>
+                    </a>
+                    <a class="nav-link mb-4"
+                       onclick="gotoQCLogs()">
+                        <li class="nav-item">
+                            QC Logs<span class="sr-only">(current)</span>
+                        </li>
+                    </a>
+                    <a class="nav-link mb-4"
+                       onclick="gotoQCLanding()">
+                        <li class="nav-item">
+                            QC<span class="sr-only"></span>
+                        </li>
+                    </a>
+                    <a class="nav-link mb-4"
+                       onclick="gotoDetectorSetup()">
+                        <li class="nav-item">
+                            Detector Setup<span class="sr-only"></span>
+                        </li>
+                    </a>
+                    <a class="nav-link mb-4"
+                       onclick="gotoUserConfiguration()">
+                        <li class="nav-item">
+                            User Configuration<span class="sr-only"></span>
+                        </li>
+                    </a>
+                    <a class="nav-link mb-4"
+                       onclick="resetReader()">
+                        <li class="nav-item">
+                            Reset Reader<span class="sr-only"></span>
+                        </li>
+                    </a>
+                    <a class="nav-link"
+                       onclick="gotoLogin()">
+                        <li class="nav-item">
+                            Logout<span class="sr-only"></span>
+                        </li>
+                    </a>
+                </ul>
+            </div>
+        </nav>
+    </header>
+
+
+    @RenderBody()
+    @RenderSection("Scripts", required: false)
+
+
+    <!-- Modal -->
+    <div class="modal fade"
+         id="confirmationModal"
+         tabindex="-1"
+         role="dialog"
+         aria-labelledby="confirmModalCenterTitle"
+         aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered"
+             role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"
+                        id="confirmation-modal-header-title">Modal title</h5>
+                    <button type="button"
+                            class="close"
+                            data-dismiss="modal"
+                            aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <p id="confirmation-modal-body-text"></p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button"
+                            class="btn btn-primary"
+                            id="confirmation-confirm-button">Yes</button>
+                    <button type="button"
+                            class="btn btn-secondary"
+                            data-dismiss="modal"
+                            id="confirmation-reject-button">No</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="onScreenKeyboard"
+         style="display:none"></div>
+    <div id="oskSpacer"
+         style="visibility:hidden"></div>
+</body>
+
+
+
+<script>
+    initBatteryMonitor();
+
+    feather.replace();
+    @* HAMBURGER MENU ANIMATION *@
+        $(".navbar-toggler").click(function () {
+            $(".hamburger").toggleClass("is-active");
+            $(".my-header").toggleClass("active");
+            $("#app").toggleClass("blur");
+        });
+
+    //on screen keyboard
+    $("#keyboardInput").attachKeyboard();
+
+    //this gets called on every page load. If the cookie isn't there, they need to be kicked back to login
+    let currentURL = window.location.href;
+    let userSessionGUID = getUserSessionGUID();
+    if ((!userSessionGUID || userSessionGUID === '') && currentURL != baseURL) {
+        onFail("Session has expired", "Session Timeout");
+        gotoLogin();
+    } else {
+        refreshSessionCookie();//updates cookie, sets expiration now + 10 minutes
+    }
+
+    function startTimeoutTimer() {
+        const timeout = setTimeout(() => {
+            //Every 10 minutes, we ping the server-side code.
+            //This forces it to check the cookie and the session
+            //if it fails, the cookie will be removed and the user
+            //will be redirected back to login
+            axios.get(baseURL + 'Home/Ping').then(() => {
+                startTimeoutTimer();
+            });
+        }, 600000);
+    }
+
+    function showConfirmationModal(title, body, dangerous, confirmCallback, ...callbackParams) {
+        $("#confirmation-modal-header-title").text(title);
+        $("#confirmation-modal-body-text").text(body);
+
+        if (confirmCallback) {
+            $('#confirmation-confirm-button').off('click').on('click', () => {
+                confirmCallback(callbackParams)
+            });
+        }
+
+        if (dangerous) {
+            $('#confirmation-confirm-button').removeClass('btn-primary').addClass('btn-danger');
+        } else {
+            $('#confirmation-confirm-button').removeClass('btn-danger').addClass('btn-primary');
+        }
+        $('#confirmationModal').modal('show');
+    }
+
+    function hideConfirmationModal() {
+        $('#confirmationModal').modal('hide');
+        $("#confirmation-modal-header-title").text("");
+        $("#confirmation-modal-body-text").text("");
+        $('#confirmation-confirm-button').off('click');
+        $('#confirmation-confirm-button').removeClass('btn-danger').addClass('btn-primary');
+    }
+
+    startTimeoutTimer();
+</script>
+
+</html>

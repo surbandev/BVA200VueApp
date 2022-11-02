@@ -1,0 +1,3 @@
+Cannot use any copy of the wkhtmltopdf linux binaries due to shared library dependencies.
+Decided to use the native OS repo's version which is installed / updated each time the BVA
+software is updated on the device(s).

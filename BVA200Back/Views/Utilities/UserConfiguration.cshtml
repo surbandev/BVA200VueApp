@@ -1,0 +1,458 @@
+@using Newtonsoft.Json
+
+<div id="app">
+    <div class="d-flex flex-column justify-content-end h-100">
+        <div class="rounded-card standard-wrap bg-white">
+            <input class="form-control search-input"
+                   type="text"
+                   placeholder="Search users"
+                   inputmode="text"
+                   v-model="searchString">
+            <div>
+                <input type="button"
+                       class="btn btn-lg blueButton homeScreenButtonSixInchRight mt-3"
+                       style="float:left"
+                       value="Clear"
+                       v-on:click="clearSearch()" />
+                <input type="button"
+                       class="btn btn-lg blueButton homeScreenButtonSixInchRight mt-3"
+                       style="float:right"
+                       value="Search"
+                       v-on:click="search()" />
+            </div>
+            <div class="mt-3">
+                <div class="card-wrap">
+                    <ul class="list-group">
+                        <li class="list-group-item"
+                            v-for="user in users"
+                            v-on:click="editUser(user.ID)">
+                            {{user.UserName}}
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <div>
+                <input type="button"
+                       class="btn btn-lg blueButton homeScreenButtonSixInchRight mt-3"
+                       style="float:right"
+                       value="Add User"
+                       v-if="!editUserMode"
+                       v-on:click="editUser()" />
+            </div>
+
+
+
+            <!--Reusing the card as a hidable component -->
+
+            <div class="card mt-3"
+                 v-if="editUserMode">
+                <div class="card-header">Edit User</div>
+                <ul class="list-group">
+                    <li class="list-group-item">First Name<input class="card-input"
+                               type="text"
+                               inputmode="text"
+                               v-model="tmpFirstName" />
+                    </li>
+                    <li class="list-group-item">Last Name<input class="card-input"
+                               type="text"
+                               inputmode="text"
+                               v-model="tmpLastName" />
+                    </li>
+                    <li class="list-group-item">User Name<input class="card-input"
+                               type="text"
+                               inputmode="text"
+                               v-model="tmpUserName" />
+                    </li>
+                    <li class="list-group-item">Password<input class="card-input"
+                               type="password"
+                               inputmode="password"
+                               v-model="tmpPassword" />
+                    </li>
+                    <li class="list-group-item">Is Admin?<select class="card-input"
+                                v-model="tmpIsAdmin">
+                            <option value="Yes">Yes</option>
+                            <option value="No">No</option>
+                        </select>
+                    </li>
+                </ul>
+                <div class="card-footer">
+                    <div class="d-flex justify-content-between">
+                        <input type="button"
+                               class="btn btn-lg btn-danger"
+                               value="Delete"
+                               data-fancybox
+                               data-src="#confirmationModal"
+                               v-if="tmpID" />
+
+                        <input type="button"
+                               class="btn btn-lg blueButton"
+                               value="Cancel"
+                               v-on:click="closeEditMode()" />
+
+                        <input type="button"
+                               class="btn btn-lg btn-success"
+                               value="Save"
+                               v-on:click="saveUser()" />
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Modal -->
+    <div id="confirmationModal"
+         style="display: none">
+        <div class="container-body mt-5">
+            <p class="modal-copy">
+                You are about to delete <b>{{tmpUserName}}</b> from this device.
+                <br />
+                Do you understand and wish to proceed?
+            </p>
+        </div>
+        <div class="icon-wrap d-flex justify-content-around mt-5">
+            <input type="button"
+                   class="btn btn-lg btn-danger homeScreenButtonSixInchRight"
+                   v-on:click="deleteUser(tmpID)"
+                   value="Yes" />
+            <input type="button"
+                   class="btn btn-lg blueButton homeScreenButtonSixInchRight"
+                   v-on:click="closeFancyBox"
+                   value="No" />
+        </div>
+    </div>
+</div>
+<div class="bottom-gradient"></div>
+
+
+
+
+@* Vue logic lives here *@
+<script>
+    CreateUserConfigVue(@Html.Raw(JsonConvert.SerializeObject(Model)));
+
+    function CreateUserConfigVue(model) {
+        new Vue({
+            el: '#app',
+            data: {
+                // Alphebetical Order
+                currentUserSession: model.CurrentUserSession,
+                editUserMode: false,
+                searchString: "",
+                tmpID: "",
+                tmpIsAdmin: "",
+                tmpFirstName: "",
+                tmpLastName: "",
+                tmpPassword: "",
+                tmpUserName: "",
+                users: model.Users, //This may need pagination
+                origUsers: model.Users //used exclusively to revert from search
+            },
+            watch: {
+                'searchString': function () {
+                    this.search();
+                }
+            },
+            methods: {
+                search: function () {
+                    const context = this;
+                    this.users = this.origUsers;//reset every time
+
+                    if (this.searchString.trim() === '') {
+                        this.searchString = '';
+                        return;
+                    }
+
+                    let firstNameResults = this.users.filter((x) => {
+                        return x.FirstName.trim().toUpperCase().indexOf(this.searchString.trim().toUpperCase()) >= 0;
+                    });
+                    let lastNameResults = this.users.filter((x) => {
+                        return x.LastName.trim().toUpperCase().indexOf(this.searchString.trim().toUpperCase()) >= 0;
+                    });
+                    let userNameResults = this.users.filter((x) => {
+                        return x.UserName.trim().toUpperCase().indexOf(this.searchString.trim().toUpperCase()) >= 0;
+                    });
+
+                    let searchResults = firstNameResults.concat(lastNameResults.concat(userNameResults));
+
+                    let uniqueIDs = [];
+                    searchResults = searchResults.filter((x) => {
+                        const isDuplicate = uniqueIDs.includes(x.ID);
+                        if (!isDuplicate) {
+                            uniqueIDs.push(x.ID);
+                            return true;
+                        }
+                    });
+
+                    this.users = searchResults;
+                },
+                clearSearch: function () {
+                    this.searchString = "";
+                    this.search();
+                },
+                closeFancyBox: function () {
+                    $.fancybox.close();
+                },
+                clearUserFields: function () {
+                    this.tmpIsAdmin = "";
+                    this.tmpFirstName = "";
+                    this.tmpLastName = "";
+                    this.tmpPassword = "";
+                    this.tmpUserName = "";
+                    this.tmpID = "";
+                },
+                closeEditMode: function () {
+                    this.editUserMode = false;
+                    this.clearUserFields();
+                },
+                editUser: function (userID) {
+                    const context = this;
+                    if (!userID) {
+                        this.clearUserFields();
+                        this.editUserMode = true;
+                        return;
+                    }
+
+                    let user = this.users.filter(user => {
+                        return user.ID === userID;
+                    })[0];
+
+
+                    context.tmpFirstName = user.FirstName;
+                    context.tmpLastName = user.LastName;
+                    context.tmpUserName = user.UserName;
+                    context.tmpPassword = user.Password;
+                    context.tmpIsAdmin = user.IsAdmin == true ? 'Yes' : 'No';
+                    context.tmpID = user.ID;
+                    context.editUserMode = true;
+                },
+                logOut: function () {
+                    const context = this;
+                    const url = "https://localhost:5001/Home/Logout";
+                    const payload = {
+                        UserSessionGUID: context.currentUserSession
+                    }
+
+                    if (!this.detectorState || this.detectorState == "IDle") {
+                        try {
+                            axios.post(url, payload).then(function (response) {
+                                context.onSuccess("User Signed Out.", "Success!")
+                                context.loggedIn = false;
+                                context.savedUserSession = "";
+                                context.currentUserSession = "";
+                                window.location.replace("http://localhost:5000/Home");
+                            });
+                        } catch (err) {
+                            onFail("Failed To Sign In", "Failed");
+                        }
+                    } else {
+                        onFail("Must wait for the detector to finish counting!", "Stop");
+                    }
+                },
+                // USER METHODS
+                validateFields() {
+                    if (!this.tmpFirstName) {
+                        onFail("First Name must be filled out", "Validation Error");
+                        return false;
+                    }
+                    if (this.tmpFirstName.trim() === '') {
+                        onFail("First Name must be filled out", "Validation Error");
+                        return false;
+                    }
+
+                    if (!this.tmpLastName) {
+                        onFail("Last Name must be filled out", "Validation Error");
+                        return false;
+                    }
+                    if (this.tmpLastName.trim() === '') {
+                        onFail("Last Name must be filled out", "Validation Error");
+                        return false;
+                    }
+
+                    if (!this.tmpUserName) {
+                        onFail("User Name must be filled out", "Validation Error");
+                        return false;
+                    }
+                    if (this.tmpUserName.trim() === '') {
+                        onFail("User Name must be filled out", "Validation Error");
+                        return false;
+                    }
+
+                    if (!this.tmpPassword) {
+                        onFail("Password must be filled out", "Validation Error");
+                        return false;
+                    }
+                    if (this.tmpPassword.trim() === '') {
+                        onFail("Password must be filled out", "Validation Error");
+                        return false;
+                    }
+
+                    if (!this.tmpIsAdmin) {
+                        onFail("IsAdmin must be selected", "Validation Error");
+                        return false;
+                    }
+                    if (this.tmpIsAdmin.trim() === '') {
+                        onFail("IsAdmin must be selected", "Validation Error");
+                        return false;
+                    }
+
+                    //if we get here, we're peachy
+                    return true;
+
+                },
+                saveUser() {
+                    const context = this;
+                    if (!this.validateFields()) {
+                        return;
+                    }
+                    //the ides is to determine if the user is not and act accordingly
+                    if (this.tmpID) {
+                        this.updateUser();
+                    } else {
+                        this.addUser();
+                    }
+                },
+                updateUser: function () {
+                    const context = this;
+                    const url = "/Utilities/UpdateUser";
+                    const payload = {
+                        FirstName: context.tmpFirstName.trim(),
+                        LastName: context.tmpLastName.trim(),
+                        UserName: context.tmpUserName.trim(),
+                        Password: context.tmpPassword,
+                        IsAdmin: context.tmpIsAdmin === "Yes" ? true : false,
+                        ID: context.tmpID
+                    };
+
+                    axios.post(url, payload).then(function (response) {
+                        if (response.data !== 1) {
+                            throw "";
+                        }
+
+                        onSuccess("User updated successfully.", "Success");
+                        context.closeEditMode();
+                        gotoUserConfiguration();
+                    }).catch((err) => {
+                        console.error(err);
+                        onFail("Thes user was not saved successfully. " + err.message, "Failed");
+                    });
+                },
+                addUser: function () {
+                    const context = this;
+                    const url = "/Utilities/AddUser";
+                    const payload = {
+                        FirstName: context.tmpFirstName.trim(),
+                        LastName: context.tmpLastName.trim(),
+                        UserName: context.tmpUserName.trim(),
+                        Password: context.tmpPassword,
+                        IsAdmin: context.tmpIsAdmin === "Yes" ? true : false
+                    };
+                    axios.post(url, payload).then(function (response) {
+                        if (response.data === 1) {
+                            onSuccess("User updated successfully.", "Success");
+                            context.closeEditMode();
+                            gotoUserConfiguration();
+                        } else {
+                            onFail("There is an error with the user update, please try again.", "Failure!")
+                        }
+                    }).catch((err) => {
+                        onFail("Thes user was not saved successfully" + err.message, "Failed");
+                    });
+                },
+                deleteUser: function (ID) {
+                    const context = this;
+                    const url = "/Utilities/DeleteUser";
+                    const payload = { ID };
+                    try {
+                        axios.post(url, payload).then(function (response) {
+                            if (response.data === 1) {
+                                onSuccess("User removed successfully.", "Success");
+                                gotoUserConfiguration();
+                            } else {
+                                onFail("There is an error with the user update, please try again.", "Failure!")
+                            }
+                        });
+                    } catch (err) {
+                        console.error(err);
+                        onFail("Thes user was not removed successfully" + err.message, "Failed");
+                    }
+                },
+
+                ...vueMethods
+            }
+        })
+    }
+    feather.replace();
+</script>
+
+<style scoped>
+    :root {
+        font-size: 1.5rem;
+    }
+
+    #app {
+        height: 100vh;
+        overflow-y: hidden;
+    }
+
+    .container.main {
+        height: 100%;
+    }
+
+    .container.main>* {
+        width: 100%;
+    }
+
+    .card-wrap {
+        max-height: 365px;
+        overflow-y: scroll;
+        position: relative;
+        scroll-snap-type: y mandatory;
+        scroll-padding: 50px 0 0 50px;
+    }
+
+    .card {
+        scroll-snap-align: start;
+    }
+
+    .card-header {
+        background-color: var(--daxor-blue);
+        border: none;
+        color: #fff;
+        font-weight: 800;
+    }
+
+    .top-gradient {
+        width: 100%;
+        position: sticky;
+        z-index: 90;
+        top: -3px;
+        height: 75px;
+        background: rgb(237, 237, 237);
+        background: linear-gradient(180deg, rgba(237, 237, 237, 1) 0%, rgba(240, 240, 240, 0.8379726890756303) 59%, rgba(255, 255, 255, 0) 100%);
+    }
+
+    .bottom-gradient {
+        width: 100%;
+        position: sticky;
+        bottom: -3px;
+        height: 75px;
+        background: rgb(237, 237, 237);
+        background: linear-gradient(0deg, rgba(237, 237, 237, 1) 0%, rgba(240, 240, 240, 0.8379726890756303) 59%, rgba(255, 255, 255, 0) 100%);
+    }
+
+    .card-input {
+        border: none;
+        border-bottom: 2px solid #eeeeee;
+        width: 60%;
+        float: right;
+    }
+
+    select {
+        border-width: 3px;
+    }
+
+    label {
+        float: left;
+        margin-right: 15px;
+    }
+</style>

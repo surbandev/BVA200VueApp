@@ -1,0 +1,25 @@
+#!/bin/bash
+zenity --question --width 300 --text "Do you want to run the BVA200 install/update tool?"
+
+if [ "$?" -eq "0" ]; then
+
+   isUbuntu=$(cat /etc/os-release | grep -c "ubuntu")
+   isSuse=$(cat /etc/os-release | grep -c "suse")
+   
+   if [ "$isUbuntu" -ne "0" ]; then
+      twenty=$(cat /etc/os-release | grep -c "20.04")
+      twentyTwo=$(cat /etc/os-release | grep -c "22.04")
+      if [ "$twenty" -ne "0" ]; then
+         gnome-terminal -- sh -c 'sudo dpkg --configure -a && sudo apt install dos2unix && dos2unix -q ./publish/* && chmod +x ./publish/linux-prod-setup/ubuntu/20.04/setup.sh && cd ./publish/linux-prod-setup/ubuntu/20.04/ && sudo ./setup.sh;'
+      fi
+
+      if [ "$twentyTwo" -ne "0" ]; then
+         gnome-terminal -- sh -c 'sudo dpkg --configure -a && sudo apt install dos2unix && dos2unix -q ./publish/* && chmod +x ./publish/linux-prod-setup/ubuntu/22.04/setup.sh && cd ./publish/linux-prod-setup/ubuntu/22.04/ && sudo ./setup.sh;'
+      fi
+   fi
+
+   if [ "$isSuse" -ne "0" ]; then
+      gnome-terminal -- sh -c 'sudo zypper install -y dos2unix && dos2unix -q ./publish/* && chmod +x ./publish/linux-prod-setup/suse/setup.sh && cd ./publish/linux-prod-setup/suse/ && sudo ./setup.sh;'
+   fi
+   
+fi
